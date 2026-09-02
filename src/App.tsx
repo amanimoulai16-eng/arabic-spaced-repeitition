@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
-import { useTheme, ThemeToggle } from '@/lib/useTheme';
-import { useLanguage, LanguageSwitcher } from '@/lib/useLanguage';
+import { useTheme } from '@/lib/useTheme';
+import { useLanguage } from '@/lib/useLanguage';
 import {
   type Card,
   type Rating,
@@ -11,11 +11,14 @@ import {
   type Settings,
   type Attachment,
   DEFAULT_INTERVALS,
+  DEFAULT_NEW_CARDS_PER_DAY,
+  DEFAULT_MAX_REVIEWS_PER_DAY,
   getStatus,
   computeNextStage,
   addDays,
   computeStreak,
   categoryColor,
+  todayISO,
 } from '@/lib/srs';
 import { AuthScreen } from '@/components/AuthScreen';
 import { BottomNav, type PageKey } from '@/components/BottomNav';
@@ -33,6 +36,8 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<Settings>({
     intervals: DEFAULT_INTERVALS,
+    newCardsPerDay: DEFAULT_NEW_CARDS_PER_DAY,
+    maxReviewsPerDay: DEFAULT_MAX_REVIEWS_PER_DAY,
   });
   const [dataLoading, setDataLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
@@ -81,10 +86,18 @@ export default function App() {
       .eq('user_id', session.user.id)
       .maybeSingle();
     if (error || !data) {
-      setSettings({ intervals: DEFAULT_INTERVALS });
+      setSettings({
+        intervals: DEFAULT_INTERVALS,
+        newCardsPerDay: DEFAULT_NEW_CARDS_PER_DAY,
+        maxReviewsPerDay: DEFAULT_MAX_REVIEWS_PER_DAY,
+      });
       return;
     }
-    setSettings({ intervals: data.intervals as number[] });
+    setSettings({
+      intervals: (data.intervals as number[]) ?? DEFAULT_INTERVALS,
+      newCardsPerDay: (data.new_cards_per_day as number) ?? DEFAULT_NEW_CARDS_PER_DAY,
+      maxReviewsPerDay: (data.max_reviews_per_day as number) ?? DEFAULT_MAX_REVIEWS_PER_DAY,
+    });
   }, [session]);
 
   useEffect(() => {
@@ -136,6 +149,16 @@ export default function App() {
       answer: string;
       attachments: Attachment[];
     }) => {
+      // Daily limit check for new cards
+      const today = todayISO();
+      const newToday = cards.filter(
+        (c) => c.created_at.slice(0, 10) === today && c.review_count === 0,
+      ).length;
+      if (newToday >= settings.newCardsPerDay) {
+        showToast(t('toast_daily_limit'));
+        return;
+      }
+
       const intervals = settings.intervals.slice();
       const startIdx = Math.min(
         data.familiarity || 0,
@@ -172,11 +195,21 @@ export default function App() {
       const days = intervals[startIdx];
       showToast(t('toast_added', days as never));
     },
-    [settings, showToast, refreshAll, categories, fetchCategories, t],
+    [settings, showToast, refreshAll, categories, fetchCategories, t, cards],
   );
 
   const handleReview = useCallback(
     async (id: string, rating: Rating) => {
+      // Daily limit check for reviews
+      const today = todayISO();
+      const reviewsToday = reviewLog.filter(
+        (r) => r.reviewed_at === today,
+      ).length;
+      if (reviewsToday >= settings.maxReviewsPerDay) {
+        showToast(t('toast_review_limit'));
+        return;
+      }
+
       const card = cards.find((c) => c.id === id);
       if (!card) return;
 
@@ -218,7 +251,7 @@ export default function App() {
       };
       showToast(msgs[rating]);
     },
-    [cards, showToast, refreshAll, t],
+    [cards, reviewLog, settings, showToast, refreshAll, t],
   );
 
   const handleDelete = useCallback(
@@ -259,25 +292,30 @@ export default function App() {
   );
 
   const handleSaveSettings = useCallback(
-    async (intervals: number[]) => {
+    async (newSettings: Settings) => {
       if (!session) return;
       const { error } = await supabase.from('user_settings').upsert({
         user_id: session.user.id,
-        intervals,
+        intervals: newSettings.intervals,
+        new_cards_per_day: newSettings.newCardsPerDay,
+        max_reviews_per_day: newSettings.maxReviewsPerDay,
         updated_at: new Date().toISOString(),
       });
       if (error) {
         showToast(t('toast_settings_fail'));
         return;
       }
-      setSettings({ intervals });
+      setSettings(newSettings);
       showToast(t('toast_settings_saved'));
     },
     [session, showToast, t],
   );
 
   const handleResetSettings = useCallback(() => {
-    setSettings({ intervals: DEFAULT_INTERVALS });
+    setSettings((prev) => ({
+      ...prev,
+      intervals: DEFAULT_INTERVALS.slice(),
+    }));
   }, []);
 
   const handleEdit = useCallback(
@@ -390,16 +428,6 @@ export default function App() {
               {profile?.display_name || session.user.email}
             </p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-            <LanguageSwitcher lang={lang} onChange={setLang} t={t} />
-            <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            <button
-              onClick={signOut}
-              className="surface border-border-soft text-text-muted rounded-[9px] px-3 py-2 sm:px-3.5 sm:py-2.5 text-[12px] sm:text-[13px] cursor-pointer hover:text-coral hover:border-coral/40 transition-colors"
-            >
-              {t('sign_out')}
-            </button>
-          </div>
         </header>
 
         {/* Page content */}
@@ -449,6 +477,16 @@ export default function App() {
             settings={settings}
             onSave={handleSaveSettings}
             onReset={handleResetSettings}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            lang={lang}
+            onChangeLang={setLang}
+            onSignOut={signOut}
+            cards={cards}
+            categories={categories}
+            userId={session.user.id}
+            onRefresh={refreshAll}
+            showToast={showToast}
             t={t}
           />
         )}

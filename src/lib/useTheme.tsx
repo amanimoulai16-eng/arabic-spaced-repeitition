@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { supabase } from './supabase';
 
 export type Theme = 'dark' | 'light';
 
@@ -22,8 +23,26 @@ export function useTheme() {
     localStorage.setItem('tikrar-theme', theme);
   }, [theme]);
 
-  const toggle = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
-  return { theme, toggle };
+  const toggle = useCallback(() => {
+    setTheme((t) => {
+      const next = t === 'dark' ? 'light' : 'dark';
+      supabase
+        .from('profiles')
+        .update({ preferred_theme: next })
+        .then(() => {});
+      return next;
+    });
+  }, []);
+
+  const setThemeExplicit = useCallback((t: Theme) => {
+    setTheme(t);
+    supabase
+      .from('profiles')
+      .update({ preferred_theme: t })
+      .then(() => {});
+  }, []);
+
+  return { theme, toggle, setTheme: setThemeExplicit };
 }
 
 export function ThemeToggle({
@@ -36,9 +55,9 @@ export function ThemeToggle({
   return (
     <button
       onClick={onToggle}
-      aria-label={theme === 'dark' ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي'}
+      aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
       className="surface border-border-soft text-text-muted rounded-[9px] px-3 py-2 sm:px-3.5 sm:py-2.5 text-base cursor-pointer hover:text-amber hover:border-amber/40 transition-all"
-      title={theme === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي'}
+      title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
     >
       {theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19'}
     </button>

@@ -52,13 +52,19 @@ export type UserProfile = {
   id: string;
   display_name: string | null;
   created_at: string;
+  preferred_lang: string | null;
+  preferred_theme: string | null;
 };
 
 export type Settings = {
   intervals: number[];
+  newCardsPerDay: number;
+  maxReviewsPerDay: number;
 };
 
 export const DEFAULT_INTERVALS = [1, 3, 7, 14, 30, 30];
+export const DEFAULT_NEW_CARDS_PER_DAY = 20;
+export const DEFAULT_MAX_REVIEWS_PER_DAY = 50;
 
 export const CATEGORY_PALETTE = [
   '#4FB8A6',

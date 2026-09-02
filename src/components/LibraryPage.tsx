@@ -6,6 +6,7 @@ import {
   type Rating,
   type Attachment,
   type ReviewLogEntry,
+  type Settings,
   getStatus,
   categoryColor,
 } from '@/lib/srs';
@@ -22,7 +23,7 @@ type Props = {
   cards: Card[];
   reviewLog: ReviewLogEntry[];
   categories: Category[];
-  settings: { intervals: number[] };
+  settings: Settings;
   userId: string;
   loading: boolean;
   onAdd: (data: {

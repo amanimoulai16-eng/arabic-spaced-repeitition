@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { type Lang, LANGS, getT, getTArr } from './i18n';
+import { supabase } from './supabase';
+
+const VALID_LANGS: Lang[] = ['ar', 'en', 'fr', 'es', 'hi'];
 
 export function useLanguage() {
   const [lang, setLang] = useState<Lang>(() => {
     if (typeof window === 'undefined') return 'ar';
-    const stored = localStorage.getItem('tikrar-lang');
-    if (stored === 'ar' || stored === 'en' || stored === 'fr') return stored;
+    const stored = localStorage.getItem('tikrar-lang') as Lang;
+    if (stored && VALID_LANGS.includes(stored)) return stored;
     return 'ar';
   });
 
@@ -16,10 +19,18 @@ export function useLanguage() {
     localStorage.setItem('tikrar-lang', lang);
   }, [lang]);
 
+  const changeLang = useCallback((newLang: Lang) => {
+    setLang(newLang);
+    supabase
+      .from('profiles')
+      .update({ preferred_lang: newLang })
+      .then(() => {});
+  }, []);
+
   const t = useCallback((key: string, ...args: never[]): string => getT(lang)(key, ...args), [lang]);
   const tArr = useCallback((key: string): string[] => getTArr(lang)(key), [lang]);
 
-  return { lang, setLang, t, tArr };
+  return { lang, setLang: changeLang, t, tArr };
 }
 
 export function LanguageSwitcher({
