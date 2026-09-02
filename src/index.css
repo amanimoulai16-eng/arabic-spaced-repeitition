@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html.light {
+    color-scheme: light;
+  }
+  html {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+  }
+  body {
+    @apply antialiased;
+    background-color: #12151c;
+    color: #F2EFE9;
+  }
+  html.light body {
+    background-color: #f4f6f9;
+    color: #1a1e27;
+  }
+  h1, h2, h3, .font-display {
+    font-family: 'Tajawal', sans-serif;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply border rounded-[14px] transition-colors duration-300;
+    background-color: #1A1E27;
+    border-color: #232838;
+  }
+  html.light .surface {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+  }
+  .surface-2 {
+    @apply border rounded-[9px] transition-colors duration-300;
+    background-color: #212633;
+    border-color: #2A3040;
+  }
+  html.light .surface-2 {
+    background-color: #f1f5f9;
+    border-color: #e2e8f0;
+  }
+  .btn-amber {
+    @apply bg-[#E8B44E] text-[#2A1F0A] font-display font-extrabold rounded-[9px] transition-all hover:brightness-110 active:scale-[0.98];
+  }
+  .btn-amber-dim {
+    @apply bg-[#3A311F] text-[#E8B44E] border border-[#E8B44E]/35 rounded-[9px] transition-all hover:brightness-125;
+  }
+  html.light .btn-amber-dim {
+    background-color: #fef3d8;
+    border-color: #E8B44E;
+  }
+  .btn-coral-dim {
+    @apply bg-[#332221] text-[#E2665B] rounded-[8px] transition-all hover:brightness-125;
+  }
+  html.light .btn-coral-dim {
+    background-color: #fde8e6;
+  }
+  .btn-green-dim {
+    @apply bg-[#1E2E26] text-[#6FCF97] rounded-[8px] transition-all hover:brightness-125;
+  }
+  html.light .btn-green-dim {
+    background-color: #d8f5e6;
+  }
+  .input-dark {
+    @apply border rounded-[9px] outline-none transition-colors focus:border-[#E8B44E];
+    background-color: #212633;
+    border-color: #2A3040;
+    color: #F2EFE9;
+  }
+  html.light .input-dark {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+    color: #1a1e27;
+  }
+  .chip {
+    @apply border rounded-full cursor-pointer whitespace-nowrap transition-all;
+    background-color: #1A1E27;
+    border-color: #232838;
+    color: #8B92A5;
+  }
+  html.light .chip {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+    color: #64748b;
+  }
+  .chip-active {
+    @apply bg-[#3A311F] border-[#E8B44E] text-[#E8B44E] font-semibold;
+  }
+  html.light .chip-active {
+    background-color: #fef3d8;
+  }
+  .text-text-main { color: #F2EFE9; }
+  html.light .text-text-main { color: #1a1e27; }
+  .text-text-muted { color: #8B92A5; }
+  html.light .text-text-muted { color: #64748b; }
+  .text-text-faint { color: #5B6172; }
+  html.light .text-text-faint { color: #94a3b8; }
+  .border-border { border-color: #2A3040; }
+  html.light .border-border { border-color: #e2e8f0; }
+  .border-border-soft { border-color: #232838; }
+  html.light .border-border-soft { border-color: #eef2f7; }
+  .bg-surface { background-color: #1A1E27; }
+  html.light .bg-surface { background-color: #ffffff; }
+  .bg-surface-2 { background-color: #212633; }
+  html.light .bg-surface-2 { background-color: #f1f5f9; }
+  .bg-surface-3 { background-color: #262C3B; }
+  html.light .bg-surface-3 { background-color: #e2e8f0; }
+  .bg-amber-dim { background-color: #3A311F; }
+  html.light .bg-amber-dim { background-color: #fef3d8; }
+  .bg-coral-dim { background-color: #332221; }
+  html.light .bg-coral-dim { background-color: #fde8e6; }
+  .bg-green-dim { background-color: #1E2E26; }
+  html.light .bg-green-dim { background-color: #d8f5e6; }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2A3040;
+  border-radius: 999px;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+/* Hide "Made in Bolt" badge overlay */
+[id*="bolt"] [class*="badge"],
+[class*="bolt-badge"],
+[class*="made-in-bolt"],
+a[href*="bolt.new"][target="_blank"] {
+  display: none !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-fade-in { animation: fadeIn 0.25s ease-out; }
+.animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-scale-in { animation: scaleIn 0.2s ease-out; }

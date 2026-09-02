@@ -1,0 +1,32 @@
+{
+  "name": "تكرار — Tikrar",
+  "short_name": "تكرار",
+  "description": "لا تدع منحنى النسيان يفوز — راجع في اللحظة المناسبة تماماً",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12151c",
+  "theme_color": "#E8B44E",
+ "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
