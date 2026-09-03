@@ -34,6 +34,7 @@ export default defineConfig({
         ],
       },
       manifest: {
+        id: '/',
         name: 'Tikrar - تكرار',
         short_name: 'Tikrar',
         description: 'Spaced repetition flashcard app - تطبيق التكرار المتباعد',
@@ -48,11 +49,13 @@ export default defineConfig({
             src: 'icon-192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: 'icon-512.png',
             sizes: '512x512',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: 'icon-512-maskable.png',
