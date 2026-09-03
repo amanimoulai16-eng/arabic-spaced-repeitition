@@ -20,12 +20,32 @@ import {
   categoryColor,
   todayISO,
 } from '@/lib/srs';
+import {
+  cacheCards,
+  cacheReviewLog,
+  cacheCategories,
+  cacheSettings,
+  getCachedCards,
+  getCachedReviewLog,
+  getCachedCategories,
+  getCachedSettings,
+  offlineInsertCard,
+  offlineUpdateCard,
+  offlineDeleteCard,
+  offlineInsertReview,
+  offlineUpsertSettings,
+  offlineInsertCategory,
+  syncPending,
+  getPendingCount,
+  isOnline,
+} from '@/lib/offline';
 import { AuthScreen } from '@/components/AuthScreen';
 import { BottomNav, type PageKey } from '@/components/BottomNav';
 import { DashboardPage } from '@/components/DashboardPage';
 import { ReviewPage } from '@/components/ReviewPage';
 import { LibraryPage } from '@/components/LibraryPage';
 import { SettingsPage } from '@/components/SettingsPage';
+import { WifiOff, Cloud } from 'lucide-react';
 
 export default function App() {
   const { session, profile, loading: authLoading, recoveryMode, signOut } = useAuth();
@@ -42,22 +62,66 @@ export default function App() {
   const [dataLoading, setDataLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
   const [toast, setToast] = useState<string | null>(null);
+  const [online, setOnline] = useState(isOnline());
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
   }, []);
 
+  const updatePendingCount = useCallback(async () => {
+    const count = await getPendingCount();
+    setPendingCount(count);
+  }, []);
+
+  // --- Online/offline event listeners ---
+  useEffect(() => {
+    const handleOnline = () => {
+      setOnline(true);
+    };
+    const handleOffline = () => {
+      setOnline(false);
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // --- Auto-sync when coming back online ---
+  const doSync = useCallback(async () => {
+    if (!isOnline()) return;
+    const count = await getPendingCount();
+    if (count === 0) return;
+    setSyncing(true);
+    const result = await syncPending();
+    setSyncing(false);
+    if (result.synced > 0) {
+      showToast(`${result.synced} synced`);
+    }
+    await updatePendingCount();
+  }, [showToast, updatePendingCount]);
+
+  useEffect(() => {
+    if (online) {
+      doSync();
+    }
+  }, [online, doSync]);
+
+  // --- Fetch from Supabase and update cache ---
   const fetchCards = useCallback(async () => {
     const { data, error } = await supabase
       .from('cards')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) {
-      setDataLoading(false);
-      return;
-    }
-    setCards((data ?? []) as Card[]);
+    if (error) return;
+    const rows = (data ?? []) as Card[];
+    setCards(rows);
+    await cacheCards(rows);
   }, []);
 
   const fetchReviewLog = useCallback(async () => {
@@ -66,7 +130,9 @@ export default function App() {
       .select('*')
       .order('reviewed_at', { ascending: false });
     if (error) return;
-    setReviewLog((data ?? []) as ReviewLogEntry[]);
+    const rows = (data ?? []) as ReviewLogEntry[];
+    setReviewLog(rows);
+    await cacheReviewLog(rows);
   }, []);
 
   const fetchCategories = useCallback(async () => {
@@ -75,7 +141,9 @@ export default function App() {
       .select('*')
       .order('name', { ascending: true });
     if (error) return;
-    setCategories((data ?? []) as Category[]);
+    const rows = (data ?? []) as Category[];
+    setCategories(rows);
+    await cacheCategories(rows);
   }, []);
 
   const fetchSettings = useCallback(async () => {
@@ -93,48 +161,93 @@ export default function App() {
       });
       return;
     }
-    setSettings({
+    const s: Settings = {
       intervals: (data.intervals as number[]) ?? DEFAULT_INTERVALS,
       newCardsPerDay: (data.new_cards_per_day as number) ?? DEFAULT_NEW_CARDS_PER_DAY,
       maxReviewsPerDay: (data.max_reviews_per_day as number) ?? DEFAULT_MAX_REVIEWS_PER_DAY,
-    });
+    };
+    setSettings(s);
+    await cacheSettings(session.user.id, s);
   }, [session]);
 
+  // --- Load from cache first (instant), then fetch from Supabase ---
   useEffect(() => {
     if (!session) {
       setDataLoading(false);
       return;
     }
     (async () => {
-      await Promise.all([
-        fetchCards(),
-        fetchReviewLog(),
-        fetchCategories(),
-        fetchSettings(),
+      // Load from cache immediately
+      const [cachedCards, cachedLog, cachedCats, cachedSettings] = await Promise.all([
+        getCachedCards(),
+        getCachedReviewLog(),
+        getCachedCategories(),
+        getCachedSettings(session.user.id),
       ]);
+      if (cachedCards.length > 0) setCards(cachedCards);
+      if (cachedLog.length > 0) setReviewLog(cachedLog);
+      if (cachedCats.length > 0) setCategories(cachedCats);
+      if (cachedSettings) setSettings(cachedSettings);
       setDataLoading(false);
+
+      // Then fetch from Supabase if online
+      if (isOnline()) {
+        await Promise.all([
+          fetchCards(),
+          fetchReviewLog(),
+          fetchCategories(),
+          fetchSettings(),
+        ]);
+        await doSync();
+      }
+      await updatePendingCount();
     })();
-  }, [session, fetchCards, fetchReviewLog, fetchCategories, fetchSettings]);
+  }, [session, fetchCards, fetchReviewLog, fetchCategories, fetchSettings, doSync, updatePendingCount]);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([fetchCards(), fetchReviewLog(), fetchCategories()]);
-  }, [fetchCards, fetchReviewLog, fetchCategories]);
+    if (isOnline()) {
+      await Promise.all([fetchCards(), fetchReviewLog(), fetchCategories()]);
+    } else {
+      // Just reload from cache
+      const [c, l, cat] = await Promise.all([
+        getCachedCards(),
+        getCachedReviewLog(),
+        getCachedCategories(),
+      ]);
+      setCards(c);
+      setReviewLog(l);
+      setCategories(cat);
+    }
+    await updatePendingCount();
+  }, [fetchCards, fetchReviewLog, fetchCategories, updatePendingCount]);
 
   async function ensureCategory(name: string): Promise<string | null> {
     const trimmed = name.trim();
     if (!trimmed) return null;
-    const existing = categories.find(
-      (c) => c.name === trimmed,
-    );
+    const existing = categories.find((c) => c.name === trimmed);
     if (existing) return existing.id;
-    const { data, error } = await supabase
-      .from('categories')
-      .insert({ name: trimmed, color: categoryColor(trimmed) })
-      .select()
-      .maybeSingle();
-    if (error || !data) return null;
-    await fetchCategories();
-    return data.id;
+    if (isOnline()) {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({ name: trimmed, color: categoryColor(trimmed) })
+        .select()
+        .maybeSingle();
+      if (error || !data) return null;
+      await fetchCategories();
+      return data.id;
+    }
+    // Offline: create locally
+    const id = await offlineInsertCategory(trimmed, categoryColor(trimmed));
+    const newCat: Category = {
+      id,
+      user_id: session?.user.id ?? '',
+      name: trimmed,
+      color: categoryColor(trimmed),
+      created_at: new Date().toISOString(),
+    };
+    setCategories((prev) => [...prev, newCat]);
+    await updatePendingCount();
+    return id;
   }
 
   const handleAdd = useCallback(
@@ -149,7 +262,6 @@ export default function App() {
       answer: string;
       attachments: Attachment[];
     }) => {
-      // Daily limit check for new cards
       const today = todayISO();
       const newToday = cards.filter(
         (c) => c.created_at.slice(0, 10) === today && c.review_count === 0,
@@ -160,51 +272,85 @@ export default function App() {
       }
 
       const intervals = settings.intervals.slice();
-      const startIdx = Math.min(
-        data.familiarity || 0,
-        intervals.length - 1,
-      );
+      const startIdx = Math.min(data.familiarity || 0, intervals.length - 1);
       const now = new Date();
       const nextReview = addDays(now, intervals[startIdx]);
-
       const categoryId = await ensureCategory(data.category);
 
-      const { error } = await supabase.from('cards').insert({
-        title: data.title,
-        notes: data.notes,
-        category: data.category,
-        category_id: categoryId,
-        resource: data.resource,
-        linked_item_id: data.linkedItemId || null,
-        question: data.question,
-        answer: data.answer,
-        intervals,
-        stage_index: startIdx,
-        next_review_at: nextReview.toISOString(),
-        last_review_at: now.toISOString(),
-        review_count: 0,
-        attachments: data.attachments,
-      });
-
-      if (error) {
-        showToast(t('toast_save_fail'));
-        return;
+      if (isOnline()) {
+        const { error } = await supabase.from('cards').insert({
+          title: data.title,
+          notes: data.notes,
+          category: data.category,
+          category_id: categoryId,
+          resource: data.resource,
+          linked_item_id: data.linkedItemId || null,
+          question: data.question,
+          answer: data.answer,
+          intervals,
+          stage_index: startIdx,
+          next_review_at: nextReview.toISOString(),
+          last_review_at: now.toISOString(),
+          review_count: 0,
+          attachments: data.attachments,
+        });
+        if (error) {
+          showToast(t('toast_save_fail'));
+          return;
+        }
+        await refreshAll();
+      } else {
+        // Offline insert
+        const id = await offlineInsertCard({
+          title: data.title,
+          notes: data.notes,
+          category: data.category,
+          resource: data.resource,
+          linkedItemId: data.linkedItemId,
+          question: data.question,
+          answer: data.answer,
+          intervals,
+          stageIndex: startIdx,
+          nextReviewAt: nextReview.toISOString(),
+          lastReviewAt: now.toISOString(),
+          reviewCount: 0,
+          attachments: data.attachments,
+        });
+        // Update local state
+        const newCard: Card = {
+          id,
+          user_id: session?.user.id ?? null,
+          title: data.title,
+          notes: data.notes,
+          category: data.category,
+          category_id: categoryId,
+          resource: data.resource,
+          linked_item_id: data.linkedItemId || null,
+          question: data.question,
+          answer: data.answer,
+          intervals,
+          stage_index: startIdx,
+          next_review_at: nextReview.toISOString(),
+          last_review_at: now.toISOString(),
+          created_at: now.toISOString(),
+          review_count: 0,
+          attachments: data.attachments,
+        };
+        setCards((prev) => [newCard, ...prev]);
+        await cacheCards([newCard, ...cards]);
+        await updatePendingCount();
       }
 
-      await refreshAll();
       const days = intervals[startIdx];
       showToast(t('toast_added', days as never));
     },
-    [settings, showToast, refreshAll, categories, fetchCategories, t, cards],
+    [settings, showToast, refreshAll, categories, t, cards, session],
   );
 
   const handleReview = useCallback(
     async (id: string, rating: Rating) => {
-      // Daily limit check for reviews
       const today = todayISO();
-      const reviewsToday = reviewLog.filter(
-        (r) => r.reviewed_at === today,
-      ).length;
+      const reviewsToday = reviewLog.filter((r) => r.reviewed_at === today).length;
       if (reviewsToday >= settings.maxReviewsPerDay) {
         showToast(t('toast_review_limit'));
         return;
@@ -213,36 +359,66 @@ export default function App() {
       const card = cards.find((c) => c.id === id);
       if (!card) return;
 
-      const newStage = computeNextStage(
-        card.stage_index,
-        card.intervals,
-        rating,
-      );
+      const newStage = computeNextStage(card.stage_index, card.intervals, rating);
       const now = new Date();
       const nextReview = addDays(now, card.intervals[newStage]);
+      const reviewedAt = now.toISOString().slice(0, 10);
 
-      const { error: updateError } = await supabase
-        .from('cards')
-        .update({
+      if (isOnline()) {
+        const { error: updateError } = await supabase
+          .from('cards')
+          .update({
+            stage_index: newStage,
+            next_review_at: nextReview.toISOString(),
+            last_review_at: now.toISOString(),
+            review_count: card.review_count + 1,
+          })
+          .eq('id', id);
+        if (updateError) {
+          showToast(t('toast_review_fail'));
+          return;
+        }
+        await supabase.from('review_log').insert({
+          card_id: id,
+          rating,
+          reviewed_at: reviewedAt,
+        });
+        await refreshAll();
+      } else {
+        // Offline: update cache + enqueue
+        await offlineUpdateCard(id, {
           stage_index: newStage,
           next_review_at: nextReview.toISOString(),
           last_review_at: now.toISOString(),
           review_count: card.review_count + 1,
-        })
-        .eq('id', id);
-
-      if (updateError) {
-        showToast(t('toast_review_fail'));
-        return;
+        });
+        await offlineInsertReview(id, rating, reviewedAt);
+        // Update local state
+        const updatedCards = cards.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                stage_index: newStage,
+                next_review_at: nextReview.toISOString(),
+                last_review_at: now.toISOString(),
+                review_count: c.review_count + 1,
+              }
+            : c,
+        );
+        setCards(updatedCards);
+        await cacheCards(updatedCards);
+        const newEntry: ReviewLogEntry = {
+          id: crypto.randomUUID(),
+          card_id: id,
+          rating,
+          reviewed_at: reviewedAt,
+          user_id: null,
+        };
+        const updatedLog = [newEntry, ...reviewLog];
+        setReviewLog(updatedLog);
+        await cacheReviewLog(updatedLog);
+        await updatePendingCount();
       }
-
-      await supabase.from('review_log').insert({
-        card_id: id,
-        rating,
-        reviewed_at: now.toISOString().slice(0, 10),
-      });
-
-      await refreshAll();
 
       const msgs: Record<Rating, string> = {
         forgot: t('toast_review_forgot'),
@@ -251,20 +427,28 @@ export default function App() {
       };
       showToast(msgs[rating]);
     },
-    [cards, reviewLog, settings, showToast, refreshAll, t],
+    [cards, reviewLog, settings, showToast, refreshAll, t, updatePendingCount],
   );
 
   const handleDelete = useCallback(
     async (id: string) => {
-      const { error } = await supabase.from('cards').delete().eq('id', id);
-      if (error) {
-        showToast(t('toast_delete_fail'));
-        return;
+      if (isOnline()) {
+        const { error } = await supabase.from('cards').delete().eq('id', id);
+        if (error) {
+          showToast(t('toast_delete_fail'));
+          return;
+        }
+        await refreshAll();
+      } else {
+        await offlineDeleteCard(id);
+        const updated = cards.filter((c) => c.id !== id);
+        setCards(updated);
+        await cacheCards(updated);
+        await updatePendingCount();
       }
-      await refreshAll();
       showToast(t('toast_deleted'));
     },
-    [showToast, refreshAll, t],
+    [showToast, refreshAll, t, cards, updatePendingCount],
   );
 
   const handleSnooze = useCallback(
@@ -277,38 +461,54 @@ export default function App() {
           : new Date(card.next_review_at);
       const next = addDays(base, 1);
 
-      const { error } = await supabase
-        .from('cards')
-        .update({ next_review_at: next.toISOString() })
-        .eq('id', id);
-      if (error) {
-        showToast(t('toast_snooze_fail'));
-        return;
+      if (isOnline()) {
+        const { error } = await supabase
+          .from('cards')
+          .update({ next_review_at: next.toISOString() })
+          .eq('id', id);
+        if (error) {
+          showToast(t('toast_snooze_fail'));
+          return;
+        }
+        await refreshAll();
+      } else {
+        await offlineUpdateCard(id, { next_review_at: next.toISOString() });
+        const updated = cards.map((c) =>
+          c.id === id ? { ...c, next_review_at: next.toISOString() } : c,
+        );
+        setCards(updated);
+        await cacheCards(updated);
+        await updatePendingCount();
       }
-      await refreshAll();
       showToast(t('toast_snoozed'));
     },
-    [cards, showToast, refreshAll, t],
+    [cards, showToast, refreshAll, t, updatePendingCount],
   );
 
   const handleSaveSettings = useCallback(
     async (newSettings: Settings) => {
       if (!session) return;
-      const { error } = await supabase.from('user_settings').upsert({
-        user_id: session.user.id,
-        intervals: newSettings.intervals,
-        new_cards_per_day: newSettings.newCardsPerDay,
-        max_reviews_per_day: newSettings.maxReviewsPerDay,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) {
-        showToast(t('toast_settings_fail'));
-        return;
+      if (isOnline()) {
+        const { error } = await supabase.from('user_settings').upsert({
+          user_id: session.user.id,
+          intervals: newSettings.intervals,
+          new_cards_per_day: newSettings.newCardsPerDay,
+          max_reviews_per_day: newSettings.maxReviewsPerDay,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) {
+          showToast(t('toast_settings_fail'));
+          return;
+        }
+        await cacheSettings(session.user.id, newSettings);
+      } else {
+        await offlineUpsertSettings(session.user.id, newSettings);
+        await updatePendingCount();
       }
       setSettings(newSettings);
       showToast(t('toast_settings_saved'));
     },
-    [session, showToast, t],
+    [session, showToast, t, updatePendingCount],
   );
 
   const handleResetSettings = useCallback(() => {
@@ -333,31 +533,35 @@ export default function App() {
       },
     ) => {
       const categoryId = await ensureCategory(data.category);
+      const updates = {
+        title: data.title,
+        notes: data.notes,
+        category: data.category,
+        category_id: categoryId,
+        resource: data.resource,
+        linked_item_id: data.linkedItemId || null,
+        question: data.question,
+        answer: data.answer,
+        attachments: data.attachments,
+      };
 
-      const { error } = await supabase
-        .from('cards')
-        .update({
-          title: data.title,
-          notes: data.notes,
-          category: data.category,
-          category_id: categoryId,
-          resource: data.resource,
-          linked_item_id: data.linkedItemId || null,
-          question: data.question,
-          answer: data.answer,
-          attachments: data.attachments,
-        })
-        .eq('id', id);
-
-      if (error) {
-        showToast(t('toast_edit_fail'));
-        return;
+      if (isOnline()) {
+        const { error } = await supabase.from('cards').update(updates).eq('id', id);
+        if (error) {
+          showToast(t('toast_edit_fail'));
+          return;
+        }
+        await refreshAll();
+      } else {
+        await offlineUpdateCard(id, updates);
+        const updated = cards.map((c) => (c.id === id ? { ...c, ...updates } : c));
+        setCards(updated);
+        await cacheCards(updated);
+        await updatePendingCount();
       }
-
-      await refreshAll();
       showToast(t('toast_edit_saved'));
     },
-    [showToast, refreshAll, categories, fetchCategories, t],
+    [showToast, refreshAll, categories, t, cards, updatePendingCount, session],
   );
 
   // Auth gate
@@ -385,8 +589,7 @@ export default function App() {
     .filter((c) => getStatus(c) !== 'upcoming')
     .sort(
       (a, b) =>
-        new Date(a.next_review_at).getTime() -
-        new Date(b.next_review_at).getTime(),
+        new Date(a.next_review_at).getTime() - new Date(b.next_review_at).getTime(),
     );
 
   const dueCount = dueCards.length;
@@ -427,6 +630,25 @@ export default function App() {
             <p className="m-0 text-text-muted text-[12px] sm:text-[13px]">
               {profile?.display_name || session.user.email}
             </p>
+          </div>
+
+          {/* Online/offline status badge */}
+          <div className="flex items-center gap-2">
+            {!online && (
+              <span className="flex items-center gap-1.5 surface-2 border border-border-soft rounded-full px-3 py-1.5 text-[11.5px] text-text-muted">
+                <WifiOff size={14} className="text-coral" />
+                <span>Offline</span>
+              </span>
+            )}
+            {online && pendingCount > 0 && (
+              <span className="flex items-center gap-1.5 surface-2 border border-border-soft rounded-full px-3 py-1.5 text-[11.5px] text-text-muted">
+                <Cloud
+                  size={14}
+                  className={syncing ? 'text-amber animate-pulse' : 'text-amber'}
+                />
+                <span>{pendingCount} pending</span>
+              </span>
+            )}
           </div>
         </header>
 
