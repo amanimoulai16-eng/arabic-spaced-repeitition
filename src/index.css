@@ -138,8 +138,12 @@ html.light ::-webkit-scrollbar-thumb {
 [id*="bolt"] [class*="badge"],
 [class*="bolt-badge"],
 [class*="made-in-bolt"],
-a[href*="bolt.new"][target="_blank"] {
+a[href*="bolt.new"][target="_blank"],
+#bolt-badge {
   display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 @keyframes fadeIn {
