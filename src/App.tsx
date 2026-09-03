@@ -603,8 +603,8 @@ export default function App() {
   const loading = authLoading || dataLoading;
 
   return (
-    <div className="min-h-screen px-4 sm:px-5 py-5 sm:py-6 pb-24">
-      <div className="max-w-[920px] mx-auto">
+    <div className="min-h-screen px-4 sm:px-5 py-5 sm:py-6 pb-28 sm:pb-24">
+      <div className="max-w-[920px] mx-auto w-full">
         {/* Header */}
         <header className="flex items-center justify-between gap-3 sm:gap-4 mb-5 sm:mb-6 flex-wrap">
           <div className="brand">

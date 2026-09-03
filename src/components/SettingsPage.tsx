@@ -316,7 +316,7 @@ export function SettingsPage({
   ) as string[];
 
   return (
-    <div className="animate-fade-in max-w-[560px]">
+    <div className="animate-fade-in w-full max-w-[560px] mx-auto">
       {/* Section 1: Spaced Repetition Schedule */}
       <SectionCard
         icon={<Calendar size={18} />}
@@ -448,16 +448,16 @@ export function SettingsPage({
               <button
                 key={l.code}
                 onClick={() => onChangeLang(l.code)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-[9px] border transition-all cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-[9px] border transition-all cursor-pointer min-w-0 ${
                   lang === l.code
                     ? 'border-amber/50 bg-amber-dim text-amber'
                     : 'border-border-soft surface-2 text-text-muted hover:text-text-main hover:border-border'
                 }`}
               >
-                <span className="text-lg">{l.flag}</span>
-                <span className="text-[13.5px] font-medium">{l.name}</span>
+                <span className="text-lg flex-shrink-0">{l.flag}</span>
+                <span className="text-[13.5px] font-medium truncate">{l.name}</span>
                 {lang === l.code && (
-                  <Check size={16} className="mr-auto text-amber" />
+                  <Check size={16} className="mr-auto text-amber flex-shrink-0" />
                 )}
               </button>
             ))}
@@ -610,19 +610,19 @@ export function SettingsPage({
 
         {/* Import shared deck */}
         <div className="surface-2 rounded-[10px] p-3.5">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={importCode}
               onChange={(e) => setImportCode(e.target.value)}
               placeholder={t('enter_share_code')}
-              className="input-dark flex-1 px-3 py-2.5 text-[13.5px]"
+              className="input-dark w-full px-3 py-2.5 text-[13.5px]"
               dir="ltr"
             />
             <button
               onClick={handleImportSharedDeck}
               disabled={importing || !importCode.trim()}
-              className="btn-amber px-4 py-2.5 text-[13.5px] whitespace-nowrap disabled:opacity-50"
+              className="btn-amber px-4 py-2.5 text-[13.5px] whitespace-nowrap disabled:opacity-50 sm:flex-shrink-0"
             >
               {importing ? t('processing') : t('add_shared_deck')}
             </button>
@@ -650,7 +650,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="surface p-5 mb-4">
+    <div className="surface p-4 sm:p-5 mb-4 w-full">
       <div className="flex items-center gap-2.5 mb-4">
         <span className="text-amber">{icon}</span>
         <h3 className="font-display font-bold text-[15px] m-0">{title}</h3>

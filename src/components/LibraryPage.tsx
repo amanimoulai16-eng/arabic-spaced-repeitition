@@ -358,7 +358,7 @@ export function LibraryPage({
           {t('no_folders_yet_sub')}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 w-full">
           {folders.map((folder) => {
             const isUncat = folder.name === t('no_category');
             const color = isUncat ? '#8B92A5' : categoryColor(folder.name);
@@ -366,7 +366,7 @@ export function LibraryPage({
               <button
                 key={folder.name}
                 onClick={() => setActiveFolder(folder.name)}
-                className="surface p-4 flex flex-col gap-2.5 text-right cursor-pointer hover:border-amber/40 transition-all animate-slide-up"
+                className="surface p-4 flex flex-col gap-2.5 text-right cursor-pointer hover:border-amber/40 transition-all animate-slide-up w-full min-w-0"
               >
                 <div className="flex items-center justify-between">
                   <Folder size={22} style={{ color }} />

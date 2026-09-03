@@ -28,7 +28,7 @@
 
 @layer components {
   .surface {
-    @apply border rounded-[14px] transition-colors duration-300;
+    @apply border rounded-[14px] transition-colors duration-300 w-full;
     background-color: #1A1E27;
     border-color: #232838;
   }
