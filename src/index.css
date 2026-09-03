@@ -157,3 +157,4 @@ a[href*="bolt.new"][target="_blank"] {
 .animate-fade-in { animation: fadeIn 0.25s ease-out; }
 .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .animate-scale-in { animation: scaleIn 0.2s ease-out; }
+  [class*="bolt-badge"], #bolt-badge { display: none !important; }
