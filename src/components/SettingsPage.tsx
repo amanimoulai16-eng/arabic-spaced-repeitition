@@ -316,7 +316,7 @@ export function SettingsPage({
   ) as string[];
 
   return (
-    <div className="animate-fade-in w-full max-w-[560px] mx-auto">
+    <div className="animate-fade-in w-full max-w-full px-4 mx-auto overflow-x-hidden pb-24">
       {/* Section 1: Spaced Repetition Schedule */}
       <SectionCard
         icon={<Calendar size={18} />}
@@ -650,7 +650,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="surface p-4 sm:p-5 mb-4 w-full">
+    <div className="surface p-4 sm:p-5 mb-4 w-full max-w-full">
       <div className="flex items-center gap-2.5 mb-4">
         <span className="text-amber">{icon}</span>
         <h3 className="font-display font-bold text-[15px] m-0">{title}</h3>
