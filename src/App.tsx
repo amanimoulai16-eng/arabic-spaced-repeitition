@@ -229,7 +229,7 @@ export default function App() {
     if (isOnline()) {
       const { data, error } = await supabase
         .from('categories')
-        .insert({ name: trimmed, color: categoryColor(trimmed) })
+        .insert({ user_id: session!.user.id, name: trimmed, color: categoryColor(trimmed) })
         .select()
         .maybeSingle();
       if (error || !data) return null;
@@ -237,10 +237,14 @@ export default function App() {
       return data.id;
     }
     // Offline: create locally
-    const id = await offlineInsertCategory(trimmed, categoryColor(trimmed));
+    const id = await offlineInsertCategory(
+      session!.user.id,
+      trimmed,
+      categoryColor(trimmed),
+    );
     const newCat: Category = {
       id,
-      user_id: session?.user.id ?? '',
+      user_id: session!.user.id,
       name: trimmed,
       color: categoryColor(trimmed),
       created_at: new Date().toISOString(),
@@ -279,6 +283,7 @@ export default function App() {
 
       if (isOnline()) {
         const { error } = await supabase.from('cards').insert({
+          user_id: session!.user.id,
           title: data.title,
           notes: data.notes,
           category: data.category,
@@ -307,6 +312,8 @@ export default function App() {
           category: data.category,
           resource: data.resource,
           linkedItemId: data.linkedItemId,
+          categoryId,
+          userId: session!.user.id,
           question: data.question,
           answer: data.answer,
           intervals,
@@ -319,7 +326,7 @@ export default function App() {
         // Update local state
         const newCard: Card = {
           id,
-          user_id: session?.user.id ?? null,
+          user_id: session!.user.id,
           title: data.title,
           notes: data.notes,
           category: data.category,
@@ -378,11 +385,16 @@ export default function App() {
           showToast(t('toast_review_fail'));
           return;
         }
-        await supabase.from('review_log').insert({
+        const { error: reviewError } = await supabase.from('review_log').insert({
           card_id: id,
           rating,
           reviewed_at: reviewedAt,
+          user_id: session!.user.id,
         });
+        if (reviewError) {
+          showToast(t('toast_review_fail'));
+          return;
+        }
         await refreshAll();
       } else {
         // Offline: update cache + enqueue
@@ -392,7 +404,7 @@ export default function App() {
           last_review_at: now.toISOString(),
           review_count: card.review_count + 1,
         });
-        await offlineInsertReview(id, rating, reviewedAt);
+        await offlineInsertReview(id, rating, reviewedAt, session!.user.id);
         // Update local state
         const updatedCards = cards.map((c) =>
           c.id === id
@@ -412,7 +424,7 @@ export default function App() {
           card_id: id,
           rating,
           reviewed_at: reviewedAt,
-          user_id: null,
+          user_id: session!.user.id,
         };
         const updatedLog = [newEntry, ...reviewLog];
         setReviewLog(updatedLog);
