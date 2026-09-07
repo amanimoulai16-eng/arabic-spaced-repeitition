@@ -65,6 +65,7 @@ export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin
   email.trim(),
   {
     redirectTo: 'https://tikrar-app.vercel.app/',
+  }
 );
       if (resetError) {
         setError(t('reset_send_fail'));
