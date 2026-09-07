@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
+
 import type { Session } from '@supabase/supabase-js';
+
 import { supabase } from '@/lib/supabase';
+
 import type { UserProfile } from '@/lib/srs';
 
 const STARTUP_TIMEOUT = 1500;
@@ -8,7 +11,9 @@ const STARTUP_TIMEOUT = 1500;
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
     promise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), ms)
+    ),
   ]);
 }
 
@@ -17,6 +22,7 @@ export function useAuth() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [recoveryMode, setRecoveryMode] = useState(false);
+
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -24,10 +30,13 @@ export function useAuth() {
 
     withTimeout(supabase.auth.getSession(), STARTUP_TIMEOUT).then((res) => {
       if (!mounted.current) return;
-      const session = res?.data.session ?? null;
-      setSession(session);
-      if (session) {
-        fetchProfile(session.user.id);
+
+      const currentSession = res?.data.session ?? null;
+
+      setSession(currentSession);
+
+      if (currentSession) {
+        fetchProfile(currentSession.user.id);
       } else {
         setLoading(false);
       }
@@ -36,24 +45,28 @@ export function useAuth() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         if (!mounted.current) return;
-       if (event === 'PASSWORD_RECOVERY') {
-  setRecoveryMode(true);
-  setSession(newSession);
-  setLoading(false);
 
-  if (newSession) {
-    fetchProfile(newSession.user.id);
-  }
+        if (event === 'PASSWORD_RECOVERY') {
+          setRecoveryMode(true);
+          setSession(newSession);
+          setLoading(false);
 
-  return;
+          if (newSession) {
+            fetchProfile(newSession.user.id);
+          }
+
+          return;
+        }
+
         setSession(newSession);
+
         if (newSession) {
           fetchProfile(newSession.user.id);
         } else {
           setProfile(null);
           setLoading(false);
         }
-      },
+      }
     );
 
     return () => {
@@ -69,9 +82,11 @@ export function useAuth() {
         .select('*')
         .eq('id', userId)
         .maybeSingle(),
-      STARTUP_TIMEOUT,
+      STARTUP_TIMEOUT
     );
+
     if (!mounted.current) return;
+
     setProfile((res?.data as UserProfile | null) ?? null);
     setLoading(false);
   }
@@ -81,10 +96,15 @@ export function useAuth() {
       email,
       password,
     });
+
     return { data, error };
   }
 
-  async function signUp(email: string, password: string, displayName?: string) {
+  async function signUp(
+    email: string,
+    password: string,
+    displayName?: string
+  ) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -92,6 +112,7 @@ export function useAuth() {
         data: { display_name: displayName },
       },
     });
+
     return { data, error };
   }
 
@@ -99,6 +120,7 @@ export function useAuth() {
     setSession(null);
     setProfile(null);
     setLoading(false);
+
     try {
       await supabase.auth.signOut();
     } catch {
@@ -106,5 +128,14 @@ export function useAuth() {
     }
   }
 
-  return { session, profile, loading, recoveryMode, setRecoveryMode, signIn, signUp, signOut };
+  return {
+    session,
+    profile,
+    loading,
+    recoveryMode,
+    setRecoveryMode,
+    signIn,
+    signUp,
+    signOut,
+  };
 }
