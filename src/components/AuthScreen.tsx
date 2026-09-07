@@ -63,7 +63,7 @@ export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin
     } else if (mode === 'forgot') {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
-        { redirectTo: window.location.origin },
+        { redirectTo: 'https://tikrar-app.vercel.app' },
       );
       if (resetError) {
         setError(t('reset_send_fail'));
