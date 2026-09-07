@@ -36,11 +36,14 @@ export function useAuth() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         if (!mounted.current) return;
-        if (event === 'PASSWORD_RECOVERY') {
-          setRecoveryMode(true);
-          setLoading(false);
-          return;
-        }
+       if (event === 'PASSWORD_RECOVERY') {
+  setRecoveryMode(true);
+  setLoading(false);
+  if (window.location.hostname === 'localhost') {
+    window.location.href = 'https://tikrar-app.vercel.app' + window.location.hash;
+  }
+  return;
+}
         setSession(newSession);
         if (newSession) {
           fetchProfile(newSession.user.id);
