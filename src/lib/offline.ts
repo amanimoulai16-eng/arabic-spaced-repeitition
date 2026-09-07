@@ -198,8 +198,6 @@ async function genId(): Promise<string> {
 
 export async function offlineInsertCard(
   data: {
-    userId: string;
-    categoryId: string | null;
     title: string;
     notes: string;
     category: string;
@@ -218,11 +216,11 @@ export async function offlineInsertCard(
   const id = await genId();
   const card: Card = {
     id,
-    user_id: data.userId,
+    user_id: null,
     title: data.title,
     notes: data.notes,
     category: data.category,
-    category_id: data.categoryId,
+    category_id: null,
     resource: data.resource,
     linked_item_id: data.linkedItemId || null,
     question: data.question,
@@ -261,7 +259,6 @@ export async function offlineInsertReview(
   cardId: string,
   rating: Rating,
   reviewedAt: string,
-  userId: string,
 ): Promise<void> {
   const id = await genId();
   const entry: ReviewLogEntry = {
@@ -269,12 +266,12 @@ export async function offlineInsertReview(
     card_id: cardId,
     rating,
     reviewed_at: reviewedAt,
-    user_id: userId,
+    user_id: null,
   };
   await txPut(STORE_REVIEW_LOG, entry);
   await enqueuePending({
     type: 'insert_review',
-    payload: { card_id: cardId, rating, reviewed_at: reviewedAt, user_id: userId },
+    payload: { card_id: cardId, rating, reviewed_at: reviewedAt },
   });
 }
 
@@ -296,23 +293,19 @@ export async function offlineUpsertSettings(
 }
 
 export async function offlineInsertCategory(
-  userId: string,
   name: string,
   color: string,
 ): Promise<string> {
   const id = await genId();
   const cat: Category = {
     id,
-    user_id: userId,
+    user_id: '',
     name,
     color,
     created_at: new Date().toISOString(),
   };
   await txPut(STORE_CATEGORIES, cat);
-  await enqueuePending({
-    type: 'insert_category',
-    payload: { id, user_id: userId, name, color },
-  });
+  await enqueuePending({ type: 'insert_category', payload: { name, color } });
   return id;
 }
 

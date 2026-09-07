@@ -170,52 +170,43 @@ export default function App() {
     await cacheSettings(session.user.id, s);
   }, [session]);
 
-  // --- Load from cache first (instant), then sync from Supabase in background ---
+  // --- Load from cache first (instant), then fetch from Supabase ---
   useEffect(() => {
     if (!session) {
       setDataLoading(false);
       return;
     }
-    let cancelled = false;
-
     (async () => {
-      // Load from cache immediately — UI renders right away
+      // Load from cache immediately
       const [cachedCards, cachedLog, cachedCats, cachedSettings] = await Promise.all([
         getCachedCards(),
         getCachedReviewLog(),
         getCachedCategories(),
         getCachedSettings(session.user.id),
       ]);
-      if (cancelled) return;
       if (cachedCards.length > 0) setCards(cachedCards);
       if (cachedLog.length > 0) setReviewLog(cachedLog);
       if (cachedCats.length > 0) setCategories(cachedCats);
       if (cachedSettings) setSettings(cachedSettings);
       setDataLoading(false);
 
-      // Fire Supabase fetches in the background — never block the UI
+      // Then fetch from Supabase if online
       if (isOnline()) {
-        Promise.all([
+        await Promise.all([
           fetchCards(),
           fetchReviewLog(),
           fetchCategories(),
           fetchSettings(),
-        ]).then(() => {
-          if (!cancelled) doSync();
-        });
+        ]);
+        await doSync();
       }
-      updatePendingCount();
+      await updatePendingCount();
     })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [session, fetchCards, fetchReviewLog, fetchCategories, fetchSettings, doSync, updatePendingCount]);
 
   const refreshAll = useCallback(async () => {
     if (isOnline()) {
-      // Fire in background — never block the UI
-      Promise.all([fetchCards(), fetchReviewLog(), fetchCategories()]);
+      await Promise.all([fetchCards(), fetchReviewLog(), fetchCategories()]);
     } else {
       // Just reload from cache
       const [c, l, cat] = await Promise.all([
@@ -238,7 +229,7 @@ export default function App() {
     if (isOnline()) {
       const { data, error } = await supabase
         .from('categories')
-        .insert({ user_id: session!.user.id, name: trimmed, color: categoryColor(trimmed) })
+        .insert({ name: trimmed, color: categoryColor(trimmed) })
         .select()
         .maybeSingle();
       if (error || !data) return null;
@@ -246,14 +237,10 @@ export default function App() {
       return data.id;
     }
     // Offline: create locally
-    const id = await offlineInsertCategory(
-      session!.user.id,
-      trimmed,
-      categoryColor(trimmed),
-    );
+    const id = await offlineInsertCategory(trimmed, categoryColor(trimmed));
     const newCat: Category = {
       id,
-      user_id: session!.user.id,
+      user_id: session?.user.id ?? '',
       name: trimmed,
       color: categoryColor(trimmed),
       created_at: new Date().toISOString(),
@@ -292,7 +279,6 @@ export default function App() {
 
       if (isOnline()) {
         const { error } = await supabase.from('cards').insert({
-          user_id: session!.user.id,
           title: data.title,
           notes: data.notes,
           category: data.category,
@@ -321,8 +307,6 @@ export default function App() {
           category: data.category,
           resource: data.resource,
           linkedItemId: data.linkedItemId,
-          categoryId,
-          userId: session!.user.id,
           question: data.question,
           answer: data.answer,
           intervals,
@@ -335,7 +319,7 @@ export default function App() {
         // Update local state
         const newCard: Card = {
           id,
-          user_id: session!.user.id,
+          user_id: session?.user.id ?? null,
           title: data.title,
           notes: data.notes,
           category: data.category,
@@ -394,16 +378,11 @@ export default function App() {
           showToast(t('toast_review_fail'));
           return;
         }
-        const { error: reviewError } = await supabase.from('review_log').insert({
+        await supabase.from('review_log').insert({
           card_id: id,
           rating,
           reviewed_at: reviewedAt,
-          user_id: session!.user.id,
         });
-        if (reviewError) {
-          showToast(t('toast_review_fail'));
-          return;
-        }
         await refreshAll();
       } else {
         // Offline: update cache + enqueue
@@ -413,7 +392,7 @@ export default function App() {
           last_review_at: now.toISOString(),
           review_count: card.review_count + 1,
         });
-        await offlineInsertReview(id, rating, reviewedAt, session!.user.id);
+        await offlineInsertReview(id, rating, reviewedAt);
         // Update local state
         const updatedCards = cards.map((c) =>
           c.id === id
@@ -433,7 +412,7 @@ export default function App() {
           card_id: id,
           rating,
           reviewed_at: reviewedAt,
-          user_id: session!.user.id,
+          user_id: null,
         };
         const updatedLog = [newEntry, ...reviewLog];
         setReviewLog(updatedLog);

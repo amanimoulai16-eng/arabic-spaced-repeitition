@@ -3,32 +3,19 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/srs';
 
-const PROFILE_KEY = 'tikrar:profile';
-
-function readCachedProfile(): UserProfile | null {
-  try {
-    const raw = localStorage.getItem(PROFILE_KEY);
-    return raw ? (JSON.parse(raw) as UserProfile) : null;
-  } catch {
-    return null;
-  }
-}
-
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(readCachedProfile);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [recoveryMode, setRecoveryMode] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-
     supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
       setSession(data.session);
-      setLoading(false);
       if (data.session) {
         fetchProfile(data.session.user.id);
+      } else {
+        setLoading(false);
       }
     });
 
@@ -40,24 +27,16 @@ export function useAuth() {
           return;
         }
         setSession(newSession);
-        setLoading(false);
         if (newSession) {
           fetchProfile(newSession.user.id);
         } else {
           setProfile(null);
-          try {
-            localStorage.removeItem(PROFILE_KEY);
-          } catch {
-            /* ignore */
-          }
+          setLoading(false);
         }
       },
     );
 
-    return () => {
-      cancelled = true;
-      authListener.subscription.unsubscribe();
-    };
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
   async function fetchProfile(userId: string) {
@@ -66,14 +45,8 @@ export function useAuth() {
       .select('*')
       .eq('id', userId)
       .maybeSingle();
-    if (data) {
-      setProfile(data as UserProfile);
-      try {
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(data));
-      } catch {
-        /* ignore */
-      }
-    }
+    setProfile(data as UserProfile | null);
+    setLoading(false);
   }
 
   async function signIn(email: string, password: string) {
@@ -99,11 +72,6 @@ export function useAuth() {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
-    try {
-      localStorage.removeItem(PROFILE_KEY);
-    } catch {
-      /* ignore */
-    }
   }
 
   return { session, profile, loading, recoveryMode, setRecoveryMode, signIn, signUp, signOut };
