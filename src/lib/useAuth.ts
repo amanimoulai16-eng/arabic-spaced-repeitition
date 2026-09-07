@@ -38,12 +38,14 @@ export function useAuth() {
         if (!mounted.current) return;
        if (event === 'PASSWORD_RECOVERY') {
   setRecoveryMode(true);
+  setSession(newSession);
   setLoading(false);
-  if (window.location.hostname === 'localhost') {
-    window.location.href = 'https://tikrar-app.vercel.app' + window.location.hash;
+
+  if (newSession) {
+    fetchProfile(newSession.user.id);
   }
+
   return;
-}
         setSession(newSession);
         if (newSession) {
           fetchProfile(newSession.user.id);
