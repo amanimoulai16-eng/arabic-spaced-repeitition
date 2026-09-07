@@ -1,19 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/srs';
+
+const STARTUP_TIMEOUT = 1500;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [recoveryMode, setRecoveryMode] = useState(false);
+  const mounted = useRef(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) {
-        fetchProfile(data.session.user.id);
+    mounted.current = true;
+
+    withTimeout(supabase.auth.getSession(), STARTUP_TIMEOUT).then((res) => {
+      if (!mounted.current) return;
+      const session = res?.data.session ?? null;
+      setSession(session);
+      if (session) {
+        fetchProfile(session.user.id);
       } else {
         setLoading(false);
       }
@@ -21,6 +35,7 @@ export function useAuth() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
+        if (!mounted.current) return;
         if (event === 'PASSWORD_RECOVERY') {
           setRecoveryMode(true);
           setLoading(false);
@@ -36,16 +51,23 @@ export function useAuth() {
       },
     );
 
-    return () => authListener.subscription.unsubscribe();
+    return () => {
+      mounted.current = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    setProfile(data as UserProfile | null);
+    const res = await withTimeout(
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle(),
+      STARTUP_TIMEOUT,
+    );
+    if (!mounted.current) return;
+    setProfile((res?.data as UserProfile | null) ?? null);
     setLoading(false);
   }
 
@@ -69,9 +91,14 @@ export function useAuth() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    setLoading(false);
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore network errors during sign out
+    }
   }
 
   return { session, profile, loading, recoveryMode, setRecoveryMode, signIn, signUp, signOut };

@@ -114,61 +114,83 @@ export default function App() {
 
   // --- Fetch from Supabase and update cache ---
   const fetchCards = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('cards')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) return;
-    const rows = (data ?? []) as Card[];
-    setCards(rows);
-    await cacheCards(rows);
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) return;
+      const rows = (data ?? []) as Card[];
+      setCards(rows);
+      await cacheCards(rows);
+    } catch {
+      // network error — keep cached data
+    }
   }, []);
 
   const fetchReviewLog = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('review_log')
-      .select('*')
-      .order('reviewed_at', { ascending: false });
-    if (error) return;
-    const rows = (data ?? []) as ReviewLogEntry[];
-    setReviewLog(rows);
-    await cacheReviewLog(rows);
+    try {
+      const { data, error } = await supabase
+        .from('review_log')
+        .select('*')
+        .order('reviewed_at', { ascending: false });
+      if (error) return;
+      const rows = (data ?? []) as ReviewLogEntry[];
+      setReviewLog(rows);
+      await cacheReviewLog(rows);
+    } catch {
+      // network error — keep cached data
+    }
   }, []);
 
   const fetchCategories = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name', { ascending: true });
-    if (error) return;
-    const rows = (data ?? []) as Category[];
-    setCategories(rows);
-    await cacheCategories(rows);
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name', { ascending: true });
+      if (error) return;
+      const rows = (data ?? []) as Category[];
+      setCategories(rows);
+      await cacheCategories(rows);
+    } catch {
+      // network error — keep cached data
+    }
   }, []);
 
   const fetchSettings = useCallback(async () => {
     if (!session) return;
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
-    if (error || !data) {
-      setSettings({
-        intervals: DEFAULT_INTERVALS,
-        newCardsPerDay: DEFAULT_NEW_CARDS_PER_DAY,
-        maxReviewsPerDay: DEFAULT_MAX_REVIEWS_PER_DAY,
-      });
-      return;
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (error || !data) {
+        setSettings({
+          intervals: DEFAULT_INTERVALS,
+          newCardsPerDay: DEFAULT_NEW_CARDS_PER_DAY,
+          maxReviewsPerDay: DEFAULT_MAX_REVIEWS_PER_DAY,
+        });
+        return;
+      }
+      const s: Settings = {
+        intervals: (data.intervals as number[]) ?? DEFAULT_INTERVALS,
+        newCardsPerDay: (data.new_cards_per_day as number) ?? DEFAULT_NEW_CARDS_PER_DAY,
+        maxReviewsPerDay: (data.max_reviews_per_day as number) ?? DEFAULT_MAX_REVIEWS_PER_DAY,
+      };
+      setSettings(s);
+      await cacheSettings(session.user.id, s);
+    } catch {
+      // network error — keep cached/default settings
     }
-    const s: Settings = {
-      intervals: (data.intervals as number[]) ?? DEFAULT_INTERVALS,
-      newCardsPerDay: (data.new_cards_per_day as number) ?? DEFAULT_NEW_CARDS_PER_DAY,
-      maxReviewsPerDay: (data.max_reviews_per_day as number) ?? DEFAULT_MAX_REVIEWS_PER_DAY,
-    };
-    setSettings(s);
-    await cacheSettings(session.user.id, s);
   }, [session]);
+
+  // --- Safety timeout: never stay in loading state more than 1.5s ---
+  useEffect(() => {
+    const timer = setTimeout(() => setDataLoading(false), 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // --- Load from cache first (instant), then fetch from Supabase ---
   useEffect(() => {
@@ -177,30 +199,34 @@ export default function App() {
       return;
     }
     (async () => {
-      // Load from cache immediately
-      const [cachedCards, cachedLog, cachedCats, cachedSettings] = await Promise.all([
-        getCachedCards(),
-        getCachedReviewLog(),
-        getCachedCategories(),
-        getCachedSettings(session.user.id),
-      ]);
-      if (cachedCards.length > 0) setCards(cachedCards);
-      if (cachedLog.length > 0) setReviewLog(cachedLog);
-      if (cachedCats.length > 0) setCategories(cachedCats);
-      if (cachedSettings) setSettings(cachedSettings);
-      setDataLoading(false);
-
-      // Then fetch from Supabase if online
-      if (isOnline()) {
-        await Promise.all([
-          fetchCards(),
-          fetchReviewLog(),
-          fetchCategories(),
-          fetchSettings(),
+      try {
+        // Load from cache immediately
+        const [cachedCards, cachedLog, cachedCats, cachedSettings] = await Promise.all([
+          getCachedCards(),
+          getCachedReviewLog(),
+          getCachedCategories(),
+          getCachedSettings(session.user.id),
         ]);
-        await doSync();
+        if (cachedCards.length > 0) setCards(cachedCards);
+        if (cachedLog.length > 0) setReviewLog(cachedLog);
+        if (cachedCats.length > 0) setCategories(cachedCats);
+        if (cachedSettings) setSettings(cachedSettings);
+        setDataLoading(false);
+
+        // Then fetch from Supabase if online (non-blocking — UI already visible)
+        if (isOnline()) {
+          await Promise.allSettled([
+            fetchCards(),
+            fetchReviewLog(),
+            fetchCategories(),
+            fetchSettings(),
+          ]);
+          await doSync();
+        }
+        await updatePendingCount();
+      } catch {
+        setDataLoading(false);
       }
-      await updatePendingCount();
     })();
   }, [session, fetchCards, fetchReviewLog, fetchCategories, fetchSettings, doSync, updatePendingCount]);
 
