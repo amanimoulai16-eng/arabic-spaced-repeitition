@@ -599,16 +599,16 @@ export default function App() {
     );
   }
 
-  if (!session) {
-    return (
-      <AuthScreen
-        onAuthSuccess={() => {}}
-        lang={lang}
-        setLang={setLang}
-        initialMode={recoveryMode ? 'update' : 'signin'}
-      />
-    );
-  }
+  if (!session || recoveryMode) {
+  return (
+    <AuthScreen
+      onAuthSuccess={() => {}}
+      lang={lang}
+      setLang={setLang}
+      initialMode={recoveryMode ? 'update' : 'signin'}
+    />
+  );
+}
 
   // Derived values
   const dueCards = cards
