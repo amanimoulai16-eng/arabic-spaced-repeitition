@@ -170,43 +170,52 @@ export default function App() {
     await cacheSettings(session.user.id, s);
   }, [session]);
 
-  // --- Load from cache first (instant), then fetch from Supabase ---
+  // --- Load from cache first (instant), then sync from Supabase in background ---
   useEffect(() => {
     if (!session) {
       setDataLoading(false);
       return;
     }
+    let cancelled = false;
+
     (async () => {
-      // Load from cache immediately
+      // Load from cache immediately — UI renders right away
       const [cachedCards, cachedLog, cachedCats, cachedSettings] = await Promise.all([
         getCachedCards(),
         getCachedReviewLog(),
         getCachedCategories(),
         getCachedSettings(session.user.id),
       ]);
+      if (cancelled) return;
       if (cachedCards.length > 0) setCards(cachedCards);
       if (cachedLog.length > 0) setReviewLog(cachedLog);
       if (cachedCats.length > 0) setCategories(cachedCats);
       if (cachedSettings) setSettings(cachedSettings);
       setDataLoading(false);
 
-      // Then fetch from Supabase if online
+      // Fire Supabase fetches in the background — never block the UI
       if (isOnline()) {
-        await Promise.all([
+        Promise.all([
           fetchCards(),
           fetchReviewLog(),
           fetchCategories(),
           fetchSettings(),
-        ]);
-        await doSync();
+        ]).then(() => {
+          if (!cancelled) doSync();
+        });
       }
-      await updatePendingCount();
+      updatePendingCount();
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [session, fetchCards, fetchReviewLog, fetchCategories, fetchSettings, doSync, updatePendingCount]);
 
   const refreshAll = useCallback(async () => {
     if (isOnline()) {
-      await Promise.all([fetchCards(), fetchReviewLog(), fetchCategories()]);
+      // Fire in background — never block the UI
+      Promise.all([fetchCards(), fetchReviewLog(), fetchCategories()]);
     } else {
       // Just reload from cache
       const [c, l, cat] = await Promise.all([
