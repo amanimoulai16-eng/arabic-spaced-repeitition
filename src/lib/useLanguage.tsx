@@ -4,12 +4,24 @@ import { supabase } from './supabase';
 
 const VALID_LANGS: Lang[] = ['ar', 'en', 'fr', 'es', 'hi'];
 
+function detectBrowserLang(): Lang {
+  if (typeof navigator === 'undefined') return 'en';
+  const langs = navigator.languages?.length
+    ? navigator.languages
+    : [navigator.language];
+  for (const bl of langs) {
+    const code = bl.toLowerCase().split('-')[0] as Lang;
+    if (VALID_LANGS.includes(code)) return code;
+  }
+  return 'en';
+}
+
 export function useLanguage() {
   const [lang, setLang] = useState<Lang>(() => {
-    if (typeof window === 'undefined') return 'ar';
+    if (typeof window === 'undefined') return 'en';
     const stored = localStorage.getItem('tikrar-lang') as Lang;
     if (stored && VALID_LANGS.includes(stored)) return stored;
-    return 'ar';
+    return detectBrowserLang();
   });
 
   useEffect(() => {

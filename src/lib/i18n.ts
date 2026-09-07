@@ -988,20 +988,20 @@ const hi: Dict = {
 const dicts: Record<Lang, Dict> = { ar, en, fr, es, hi };
 
 export function getT(lang: Lang) {
-  const d = dicts[lang] || ar;
+  const d = dicts[lang] || en;
   return (key: string, ...args: never[]): string => {
-    const val = d[key] ?? ar[key] ?? key;
+    const val = d[key] ?? en[key] ?? key;
     if (typeof val === 'function') return val(...args);
     return String(val);
   };
 }
 
 export function getTArr(lang: Lang) {
-  const d = dicts[lang] || ar;
+  const d = dicts[lang] || en;
   return (key: string): string[] => {
     const val = d[key];
     if (Array.isArray(val)) return val as string[];
-    const fallback = ar[key];
+    const fallback = en[key];
     return Array.isArray(fallback) ? fallback : [];
   };
 }
