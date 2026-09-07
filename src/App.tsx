@@ -609,7 +609,6 @@ export default function App() {
     />
   );
 }
-
   // Derived values
   const dueCards = cards
     .filter((c) => getStatus(c) !== 'upcoming')
