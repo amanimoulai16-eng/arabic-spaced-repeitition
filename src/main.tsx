@@ -13,8 +13,9 @@ supabase.auth.onAuthStateChange((event, session) => {
     // نخزن حالة الاستعادة في localStorage أو في حالة عامة
     localStorage.setItem('recovery_mode', 'true');
     window.dispatchEvent(new CustomEvent('recovery-requested'));
-  }
-});
+   }
+ );   
+}  
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
