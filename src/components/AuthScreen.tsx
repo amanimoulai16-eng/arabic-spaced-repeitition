@@ -11,9 +11,21 @@ type Props = {
   lang: Lang;
   setLang: (l: Lang) => void;
   initialMode?: AuthMode;
+  onRecoveryComplete?: () => void;
 };
 
-export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin' }: Props) {
+const PRODUCTION_URL = 'https://tikrar-app.vercel.app';
+
+function getRedirectURL(): string {
+  const envURL = import.meta.env.VITE_SITE_URL as string | undefined;
+  if (envURL && /^https?:\/\//.test(envURL)) return envURL.replace(/\/+$/, '');
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return window.location.origin;
+  }
+  return PRODUCTION_URL;
+}
+
+export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin', onRecoveryComplete }: Props) {
   const { t } = useLanguage();
   const { theme, toggle: toggleTheme } = useTheme();
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -61,12 +73,10 @@ export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin
       }
       onAuthSuccess();
     } else if (mode === 'forgot') {
-     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-  email.trim(),
-  {
-    redirectTo: 'https://tikrar-app.vercel.app/',
-  }
-);
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        { redirectTo: getRedirectURL() }
+      );
       if (resetError) {
         setError(t('reset_send_fail'));
         setLoading(false);
@@ -89,12 +99,16 @@ export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin
         return;
       }
       setSuccess(t('password_updated'));
-      setLoading(false);
       setNewPassword('');
-      setTimeout(() => {
-        supabase.auth.signOut();
-        setMode('signin');
-      }, 2500);
+      // Sign out of the recovery session and return to login
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore network errors
+      }
+      onRecoveryComplete?.();
+      setMode('signin');
+      setLoading(false);
     }
   }
 

@@ -48,7 +48,7 @@ import { SettingsPage } from '@/components/SettingsPage';
 import { WifiOff, Cloud } from 'lucide-react';
 
 export default function App() {
-  const { session, profile, loading: authLoading, recoveryMode, signOut } = useAuth();
+  const { session, profile, loading: authLoading, recoveryMode, setRecoveryMode, signOut } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const { lang, setLang, t, tArr } = useLanguage();
   const [cards, setCards] = useState<Card[]>([]);
@@ -606,6 +606,7 @@ export default function App() {
       lang={lang}
       setLang={setLang}
       initialMode={recoveryMode ? 'update' : 'signin'}
+      onRecoveryComplete={() => setRecoveryMode(false)}
     />
   );
 }
