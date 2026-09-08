@@ -298,3 +298,4 @@ export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin
     </div>
   );
 }
+
