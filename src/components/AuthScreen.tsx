@@ -18,7 +18,9 @@ const PRODUCTION_URL = 'https://tikrar-app.vercel.app';
 
 function getRedirectURL(): string {
   const envURL = import.meta.env.VITE_SITE_URL as string | undefined;
-  if (envURL && /^https?:///.test(envURL)) return envURL.replace(//+$/, '');
+  if (envURL && /^https?:\/\//.test(envURL)) {
+  return envURL.replace(/\/+$/, '');
+}
   return PRODUCTION_URL;
 }
 
