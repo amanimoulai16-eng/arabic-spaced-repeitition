@@ -72,18 +72,19 @@ export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin
         return;
       }
       onAuthSuccess();
-    } else if (mode === 'forgot') {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        { redirectTo: getRedirectURL() }
-      );
-      if (resetError) {
-        setError(t('reset_send_fail'));
-        setLoading(false);
-        return;
-      }
-      setSuccess(t('reset_email_sent'));
-      setLoading(false);
+   } else if (mode === 'forgot') {
+  const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+    email.trim(),
+    { redirectTo: PRODUCTION_URL } // ← ثابت على https://tikrar-app.vercel.app
+  );
+  if (resetError) {
+    setError(t('reset_send_fail'));
+    setLoading(false);
+    return;
+  }
+  setSuccess(t('reset_email_sent'));
+  setLoading(false);
+}
     } else if (mode === 'update') {
       if (newPassword.length < 6) {
         setError(t('password_update_fail'));
