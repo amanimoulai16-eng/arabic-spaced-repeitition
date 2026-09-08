@@ -14,7 +14,7 @@ supabase.auth.onAuthStateChange((event, session) => {
     localStorage.setItem('recovery_mode', 'true');
     window.dispatchEvent(new CustomEvent('recovery-requested'));
    }
- );   
+ ),   
 }  
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
