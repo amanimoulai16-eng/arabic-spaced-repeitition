@@ -76,7 +76,7 @@ export function AuthScreen({ onAuthSuccess, lang, setLang, initialMode = 'signin
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         { 
-          redirectTo: 'https://tikrar-app.vercel.app/' 
+          redirectTo: 'https://tikrar-app.vercel.app/', 
         }
       );
       if (resetError) {
