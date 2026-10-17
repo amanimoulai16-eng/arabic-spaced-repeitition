@@ -128,6 +128,20 @@ export function useAuth() {
     }
   }
 
+  async function updateDisplayName(name: string) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ display_name: name });
+
+    if (!error && mounted.current) {
+      setProfile((prev) =>
+        prev ? { ...prev, display_name: name } : prev
+      );
+    }
+
+    return { error };
+  }
+
   return {
     session,
     profile,
@@ -137,5 +151,6 @@ export function useAuth() {
     signIn,
     signUp,
     signOut,
+    updateDisplayName,
   };
 }

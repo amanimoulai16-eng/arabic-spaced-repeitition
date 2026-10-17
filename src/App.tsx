@@ -48,7 +48,7 @@ import { SettingsPage } from '@/components/SettingsPage';
 import { WifiOff, Cloud } from 'lucide-react';
 
 export default function App() {
-  const { session, profile, loading: authLoading, recoveryMode, setRecoveryMode, signOut } = useAuth();
+  const { session, profile, loading: authLoading, recoveryMode, setRecoveryMode, signOut, updateDisplayName } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const { lang, setLang, t, tArr } = useLanguage();
   const [cards, setCards] = useState<Card[]>([]);
@@ -733,6 +733,9 @@ export default function App() {
             cards={cards}
             categories={categories}
             userId={session.user.id}
+            email={session.user.email ?? ''}
+            displayName={profile?.display_name ?? ''}
+            onUpdateDisplayName={updateDisplayName}
             onRefresh={refreshAll}
             showToast={showToast}
             t={t}

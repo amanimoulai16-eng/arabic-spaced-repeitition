@@ -25,6 +25,8 @@ import {
   Plus,
   Check,
   AlertTriangle,
+  KeyRound,
+  Mail,
 } from 'lucide-react';
 
 type TFunc = (key: string, ...args: never[]) => string;
@@ -41,6 +43,9 @@ type Props = {
   cards: Card[];
   categories: Category[];
   userId: string;
+  email: string;
+  displayName: string;
+  onUpdateDisplayName: (name: string) => Promise<{ error: unknown }>;
   onRefresh: () => Promise<void>;
   showToast: (msg: string) => void;
   t: TFunc;
@@ -58,6 +63,9 @@ export function SettingsPage({
   cards,
   categories,
   userId,
+  email,
+  displayName,
+  onUpdateDisplayName,
   onRefresh,
   showToast,
   t,
@@ -79,6 +87,53 @@ export function SettingsPage({
   const [importing, setImporting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+
+  // Password change state
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  // Display name state
+  const [nameInput, setNameInput] = useState(displayName || '');
+  const [nameLoading, setNameLoading] = useState(false);
+
+  async function handleChangePassword() {
+    if (newPw.length < 6) {
+      showToast(t('pw_too_short'));
+      return;
+    }
+    if (newPw !== confirmPw) {
+      showToast(t('pw_mismatch'));
+      return;
+    }
+    setPwLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPw });
+      if (error) {
+        showToast(t('pw_update_fail'));
+      } else {
+        showToast(t('pw_updated'));
+        setNewPw('');
+        setConfirmPw('');
+      }
+    } catch {
+      showToast(t('pw_update_fail'));
+    }
+    setPwLoading(false);
+  }
+
+  async function handleSaveName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === displayName) return;
+    setNameLoading(true);
+    const { error } = await onUpdateDisplayName(trimmed);
+    if (error) {
+      showToast(t('name_save_fail'));
+    } else {
+      showToast(t('name_saved'));
+    }
+    setNameLoading(false);
+  }
 
   function handleSaveSchedule() {
     const vals = intervals.map((v) => Math.max(1, v || 1));
@@ -503,6 +558,89 @@ export function SettingsPage({
               </div>
             </div>
           )}
+        </div>
+      </SectionCard>
+
+      {/* Section 3b: Account — Change Password & Display Name */}
+      <SectionCard
+        icon={<KeyRound size={18} />}
+        title={t('settings_account')}
+      >
+        {/* Display Name */}
+        <div className="mb-4">
+          <label className="block text-[12.5px] text-text-muted mb-2">
+            {t('display_name_setting')}
+          </label>
+          <p className="text-[12px] text-text-faint mb-2.5">
+            {t('display_name_setting_sub')}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder={t('display_name_ph2')}
+              maxLength={50}
+              className="input-dark w-full px-3 py-2.5 text-[14px]"
+            />
+            <button
+              onClick={handleSaveName}
+              disabled={nameLoading || !nameInput.trim() || nameInput.trim() === displayName}
+              className="btn-amber px-4 py-2.5 text-[13.5px] whitespace-nowrap disabled:opacity-50 sm:flex-shrink-0"
+            >
+              {nameLoading ? t('processing') : t('save_name')}
+            </button>
+          </div>
+        </div>
+
+        <div className="h-px bg-border-soft my-1" />
+
+        {/* Email (read-only) */}
+        <div className="py-2.5 flex items-center gap-2.5">
+          <Mail size={18} className="text-text-faint" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] text-text-muted">{t('current_email')}</div>
+            <div className="text-[14px] text-text-main truncate" dir="ltr">{email}</div>
+          </div>
+        </div>
+
+        <div className="h-px bg-border-soft my-1" />
+
+        {/* Change Password */}
+        <div className="mt-2">
+          <label className="block text-[12.5px] text-text-muted mb-1.5">
+            {t('change_password')}
+          </label>
+          <p className="text-[12px] text-text-faint mb-2.5">
+            {t('change_password_sub')}
+          </p>
+          <div className="grid gap-2.5">
+            <input
+              type="password"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              placeholder={t('new_pw')}
+              minLength={6}
+              className="input-dark w-full px-3 py-2.5 text-[14px]"
+              dir="ltr"
+            />
+            <input
+              type="password"
+              value={confirmPw}
+              onChange={(e) => setConfirmPw(e.target.value)}
+              placeholder={t('new_pw_confirm')}
+              minLength={6}
+              className="input-dark w-full px-3 py-2.5 text-[14px]"
+              dir="ltr"
+            />
+            <button
+              onClick={handleChangePassword}
+              disabled={pwLoading || !newPw || !confirmPw}
+              className="btn-amber w-full py-2.5 text-[13.5px] disabled:opacity-50"
+            >
+              {pwLoading ? t('processing') : t('update_password_btn')}
+            </button>
+          </div>
         </div>
       </SectionCard>
 
