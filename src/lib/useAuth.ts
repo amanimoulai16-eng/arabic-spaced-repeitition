@@ -129,9 +129,13 @@ export function useAuth() {
   }
 
   async function updateDisplayName(name: string) {
+    const userId = session?.user?.id;
+    if (!userId) return { error: new Error('No session') };
+
     const { error } = await supabase
       .from('profiles')
-      .update({ display_name: name });
+      .update({ display_name: name })
+      .eq('id', userId);
 
     if (!error && mounted.current) {
       setProfile((prev) =>
