@@ -45,10 +45,11 @@ import { DashboardPage } from '@/components/DashboardPage';
 import { ReviewPage } from '@/components/ReviewPage';
 import { LibraryPage } from '@/components/LibraryPage';
 import { SettingsPage } from '@/components/SettingsPage';
+import { Avatar } from '@/components/Avatar';
 import { WifiOff, Cloud } from 'lucide-react';
 
 export default function App() {
-  const { session, profile, loading: authLoading, recoveryMode, setRecoveryMode, signOut, updateDisplayName } = useAuth();
+  const { session, profile, loading: authLoading, recoveryMode, setRecoveryMode, signOut, updateDisplayName, updateAvatarUrl } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const { lang, setLang, t, tArr } = useLanguage();
   const [cards, setCards] = useState<Card[]>([]);
@@ -653,9 +654,14 @@ export default function App() {
               </svg>
               {t('app_name')}
             </h1>
-            <p className="m-0 text-text-muted text-[12px] sm:text-[13px]">
-              {profile?.display_name || session.user.email}
-            </p>
+            <div className="m-0 text-text-muted text-[12px] sm:text-[13px] flex items-center gap-2">
+              <Avatar
+                name={profile?.display_name || session.user.email || ''}
+                avatarUrl={profile?.avatar_url ?? null}
+                size={22}
+              />
+              <span className="truncate">{profile?.display_name || session.user.email}</span>
+            </div>
           </div>
 
           {/* Online/offline status badge */}
@@ -689,6 +695,8 @@ export default function App() {
             totalReviews={totalReviews}
             loading={loading}
             onStartReview={() => setCurrentPage('review')}
+            displayName={profile?.display_name || session.user.email || ''}
+            avatarUrl={profile?.avatar_url ?? null}
             t={t}
           />
         )}
@@ -735,7 +743,9 @@ export default function App() {
             userId={session.user.id}
             email={session.user.email ?? ''}
             displayName={profile?.display_name ?? ''}
+            avatarUrl={profile?.avatar_url ?? null}
             onUpdateDisplayName={updateDisplayName}
+            onUpdateAvatar={updateAvatarUrl}
             onRefresh={refreshAll}
             showToast={showToast}
             t={t}

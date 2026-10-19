@@ -146,6 +146,24 @@ export function useAuth() {
     return { error };
   }
 
+  async function updateAvatarUrl(avatarUrl: string | null) {
+    const userId = session?.user?.id;
+    if (!userId) return { error: new Error('No session') };
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: avatarUrl })
+      .eq('id', userId);
+
+    if (!error && mounted.current) {
+      setProfile((prev) =>
+        prev ? { ...prev, avatar_url: avatarUrl } : prev,
+      );
+    }
+
+    return { error };
+  }
+
   return {
     session,
     profile,
@@ -156,5 +174,6 @@ export function useAuth() {
     signUp,
     signOut,
     updateDisplayName,
+    updateAvatarUrl,
   };
 }

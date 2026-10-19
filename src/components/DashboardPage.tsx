@@ -1,5 +1,6 @@
 import { Flame, Clock, CheckCircle, Layers } from 'lucide-react';
 import { type Card, type ReviewLogEntry, getStatus, computeStreak } from '@/lib/srs';
+import { Avatar } from '@/components/Avatar';
 
 type TFunc = (key: string, ...args: never[]) => string;
 
@@ -12,6 +13,8 @@ type Props = {
   totalReviews: number;
   loading: boolean;
   onStartReview: () => void;
+  displayName: string;
+  avatarUrl: string | null;
   t: TFunc;
 };
 
@@ -24,6 +27,8 @@ export function DashboardPage({
   totalReviews,
   loading,
   onStartReview,
+  displayName,
+  avatarUrl,
   t,
 }: Props) {
   const streakCalc = computeStreak(
@@ -33,13 +38,16 @@ export function DashboardPage({
   return (
     <div className="animate-fade-in">
       {/* Welcome card */}
-      <div className="surface p-5 sm:p-6 mb-4 bg-gradient-to-br from-amber-dim to-transparent">
-        <h2 className="font-display font-bold text-xl m-0 mb-1">
-          {t('welcome_back')}
-        </h2>
-        <p className="text-text-muted text-[13.5px] m-0">
-          {t('app_tagline')}
-        </p>
+      <div className="surface p-5 sm:p-6 mb-4 bg-gradient-to-br from-amber-dim to-transparent flex items-center gap-4">
+        <Avatar name={displayName} avatarUrl={avatarUrl} size={56} />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display font-bold text-xl m-0 mb-1 truncate">
+            {t('welcome_back')}{displayName ? ', ' : ''}{displayName}
+          </h2>
+          <p className="text-text-muted text-[13.5px] m-0">
+            {t('app_tagline')}
+          </p>
+        </div>
       </div>
 
       {/* Quick stats */}

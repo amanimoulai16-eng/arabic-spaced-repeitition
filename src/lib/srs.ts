@@ -54,6 +54,7 @@ export type UserProfile = {
   created_at: string;
   preferred_lang: string | null;
   preferred_theme: string | null;
+  avatar_url: string | null;
 };
 
 export type Settings = {

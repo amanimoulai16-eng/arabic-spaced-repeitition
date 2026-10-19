@@ -10,6 +10,7 @@ import {
 import { type Theme } from '@/lib/useTheme';
 import { type Lang, LANGS } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
+import { Avatar } from '@/components/Avatar';
 import {
   Calendar,
   Gauge,
@@ -29,6 +30,7 @@ import {
   Mail,
   Trash2,
   X,
+  Camera,
 } from 'lucide-react';
 
 type TFunc = (key: string, ...args: never[]) => string;
@@ -47,7 +49,9 @@ type Props = {
   userId: string;
   email: string;
   displayName: string;
+  avatarUrl: string | null;
   onUpdateDisplayName: (name: string) => Promise<{ error: unknown }>;
+  onUpdateAvatar: (url: string | null) => Promise<{ error: unknown }>;
   onRefresh: () => Promise<void>;
   showToast: (msg: string) => void;
   t: TFunc;
@@ -67,7 +71,9 @@ export function SettingsPage({
   userId,
   email,
   displayName,
+  avatarUrl,
   onUpdateDisplayName,
+  onUpdateAvatar,
   onRefresh,
   showToast,
   t,
@@ -104,6 +110,10 @@ export function SettingsPage({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  // Avatar upload state
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   async function handleChangePassword() {
     if (!currentPw) {
@@ -143,6 +153,66 @@ export function SettingsPage({
       showToast(t('pw_update_fail'));
     }
     setPwLoading(false);
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast(t('avatar_must_be_image'));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(t('avatar_too_large'));
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${userId}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+      if (upErr) {
+        showToast(t('avatar_upload_fail'));
+        setAvatarUploading(false);
+        return;
+      }
+      const { data: pub } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+      const publicUrl = `${pub.publicUrl}?v=${Date.now()}`;
+      const { error: dbErr } = await onUpdateAvatar(publicUrl);
+      if (dbErr) {
+        showToast(t('avatar_upload_fail'));
+        setAvatarUploading(false);
+        return;
+      }
+      showToast(t('avatar_updated'));
+    } catch {
+      showToast(t('avatar_upload_fail'));
+    }
+    setAvatarUploading(false);
+    if (avatarFileRef.current) avatarFileRef.current.value = '';
+  }
+
+  async function handleRemoveAvatar() {
+    if (!avatarUrl) return;
+    try {
+      const url = new URL(avatarUrl.split('?')[0]);
+      const path = decodeURIComponent(url.pathname.split('/avatars/')[1] || '');
+      if (path) {
+        await supabase.storage.from('avatars').remove([path]);
+      }
+    } catch {
+      // ignore — still clear the URL
+    }
+    const { error } = await onUpdateAvatar(null);
+    if (error) {
+      showToast(t('avatar_upload_fail'));
+    } else {
+      showToast(t('avatar_removed'));
+    }
   }
 
   async function handleDeleteAccount() {
@@ -613,6 +683,54 @@ export function SettingsPage({
         icon={<KeyRound size={18} />}
         title={t('settings_account')}
       >
+        {/* Profile picture */}
+        <div className="mb-4">
+          <label className="block text-[12.5px] text-text-muted mb-2">
+            {t('profile_picture')}
+          </label>
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <Avatar name={displayName || email} avatarUrl={avatarUrl} size={72} />
+              {avatarUploading && (
+                <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
+                  <span className="text-[10px] text-amber font-display">...</span>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <input
+                ref={avatarFileRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => avatarFileRef.current?.click()}
+                disabled={avatarUploading}
+                className="flex items-center gap-2 surface-2 border border-border-soft rounded-[9px] px-3 py-2 text-[13px] text-text-main font-medium hover:border-amber/40 transition-all cursor-pointer disabled:opacity-50 mb-2"
+              >
+                <Camera size={16} className="text-amber" />
+                {t('avatar_upload')}
+              </button>
+              {avatarUrl && (
+                <button
+                  onClick={handleRemoveAvatar}
+                  disabled={avatarUploading}
+                  className="text-[12px] text-text-faint hover:text-coral transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {t('avatar_remove')}
+                </button>
+              )}
+              <p className="text-[11.5px] text-text-faint mt-1.5">
+                {t('avatar_hint')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-px bg-border-soft my-1" />
+
         {/* Display Name */}
         <div className="mb-4">
           <label className="block text-[12.5px] text-text-muted mb-2">
