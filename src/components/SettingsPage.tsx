@@ -27,6 +27,8 @@ import {
   AlertTriangle,
   KeyRound,
   Mail,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 type TFunc = (key: string, ...args: never[]) => string;
@@ -98,6 +100,11 @@ export function SettingsPage({
   const [nameInput, setNameInput] = useState(displayName || '');
   const [nameLoading, setNameLoading] = useState(false);
 
+  // Account deletion state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
   async function handleChangePassword() {
     if (!currentPw) {
       showToast(t('pw_enter_current'));
@@ -136,6 +143,30 @@ export function SettingsPage({
       showToast(t('pw_update_fail'));
     }
     setPwLoading(false);
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      showToast(t('delete_type_confirm'));
+      return;
+    }
+    setDeleting(true);
+    try {
+      const { error } = await supabase.rpc('delete_user_account');
+      if (error) {
+        showToast(t('delete_account_fail'));
+        setDeleting(false);
+        return;
+      }
+      showToast(t('account_deleted'));
+      setShowDeleteConfirm(false);
+      setDeleting(false);
+      await supabase.auth.signOut();
+      onSignOut();
+    } catch {
+      showToast(t('delete_account_fail'));
+      setDeleting(false);
+    }
   }
 
   async function handleSaveName() {
@@ -791,6 +822,104 @@ export function SettingsPage({
           </div>
         </div>
       </SectionCard>
+
+      {/* Section 5: Danger Zone — Account Deletion */}
+      <div className="surface p-4 sm:p-5 mb-4 w-full max-w-full border border-red-500/30 rounded-[12px]">
+        <div className="flex items-center gap-2.5 mb-4">
+          <span className="text-red-500">
+            <AlertTriangle size={18} />
+          </span>
+          <h3 className="font-display font-bold text-[15px] m-0 text-red-500">
+            {t('danger_zone')}
+          </h3>
+        </div>
+
+        <div className="surface-2 rounded-[10px] p-3.5 border border-red-500/20">
+          <div className="flex items-start gap-2.5 mb-3">
+            <Trash2 size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] text-text-main font-medium mb-1">
+                {t('delete_account')}
+              </div>
+              <p className="text-[12.5px] text-text-faint leading-relaxed">
+                {t('delete_account_sub')}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full py-2.5 text-[13.5px] font-medium rounded-[9px] border border-red-500/50 text-red-500 hover:bg-red-500/10 transition-all cursor-pointer"
+          >
+            {t('delete_account_btn')}
+          </button>
+        </div>
+      </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-fade-in"
+          onClick={() => !deleting && setShowDeleteConfirm(false)}
+        >
+          <div
+            className="surface rounded-[14px] p-5 max-w-md w-full border border-red-500/30"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle size={20} className="text-red-500" />
+                <h3 className="font-display font-bold text-[16px] m-0 text-text-main">
+                  {t('delete_account_title')}
+                </h3>
+              </div>
+              {!deleting && (
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="text-text-faint hover:text-text-main transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            <p className="text-[13px] text-text-muted mb-4 leading-relaxed">
+              {t('delete_account_warning')}
+            </p>
+
+            <label className="block text-[12.5px] text-text-muted mb-1.5">
+              {t('delete_type_prompt')}{' '}
+              <span className="font-display font-bold text-red-500">DELETE</span>
+            </label>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              disabled={deleting}
+              placeholder="DELETE"
+              className="input-dark w-full px-3 py-2.5 text-[14px] mb-4"
+              dir="ltr"
+              autoFocus
+            />
+
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 py-2.5 text-[13.5px] font-medium rounded-[9px] border border-border-soft text-text-main hover:border-text-faint transition-all cursor-pointer disabled:opacity-50"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting || deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+                className="flex-1 py-2.5 text-[13.5px] font-medium rounded-[9px] bg-red-500 text-white hover:bg-red-600 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? t('processing') : t('delete_account_btn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
