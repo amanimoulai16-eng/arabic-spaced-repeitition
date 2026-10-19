@@ -89,6 +89,7 @@ export function SettingsPage({
   const importFileRef = useRef<HTMLInputElement>(null);
 
   // Password change state
+  const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
@@ -98,6 +99,10 @@ export function SettingsPage({
   const [nameLoading, setNameLoading] = useState(false);
 
   async function handleChangePassword() {
+    if (!currentPw) {
+      showToast(t('pw_enter_current'));
+      return;
+    }
     if (newPw.length < 6) {
       showToast(t('pw_too_short'));
       return;
@@ -108,11 +113,22 @@ export function SettingsPage({
     }
     setPwLoading(true);
     try {
+      const { error: verifyError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password: currentPw,
+        });
+      if (verifyError) {
+        showToast(t('pw_wrong_current'));
+        setPwLoading(false);
+        return;
+      }
       const { error } = await supabase.auth.updateUser({ password: newPw });
       if (error) {
         showToast(t('pw_update_fail'));
       } else {
         showToast(t('pw_updated'));
+        setCurrentPw('');
         setNewPw('');
         setConfirmPw('');
       }
@@ -617,6 +633,14 @@ export function SettingsPage({
           <div className="grid gap-2.5">
             <input
               type="password"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              placeholder={t('current_pw')}
+              className="input-dark w-full px-3 py-2.5 text-[14px]"
+              dir="ltr"
+            />
+            <input
+              type="password"
               value={newPw}
               onChange={(e) => setNewPw(e.target.value)}
               placeholder={t('new_pw')}
@@ -635,7 +659,7 @@ export function SettingsPage({
             />
             <button
               onClick={handleChangePassword}
-              disabled={pwLoading || !newPw || !confirmPw}
+              disabled={pwLoading || !currentPw || !newPw || !confirmPw}
               className="btn-amber w-full py-2.5 text-[13.5px] disabled:opacity-50"
             >
               {pwLoading ? t('processing') : t('update_password_btn')}
