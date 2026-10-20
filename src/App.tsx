@@ -45,7 +45,6 @@ import { DashboardPage } from '@/components/DashboardPage';
 import { ReviewPage } from '@/components/ReviewPage';
 import { LibraryPage } from '@/components/LibraryPage';
 import { SettingsPage } from '@/components/SettingsPage';
-import { Avatar } from '@/components/Avatar';
 import { useReminders } from '@/lib/useReminders';
 import { WifiOff, Cloud } from 'lucide-react';
 
@@ -670,11 +669,6 @@ export default function App() {
               {t('app_name')}
             </h1>
             <div className="m-0 text-text-muted text-[12px] sm:text-[13px] flex items-center gap-2">
-              <Avatar
-                name={profile?.display_name || session.user.email || ''}
-                avatarUrl={profile?.avatar_url ?? null}
-                size={22}
-              />
               <span className="truncate">{profile?.display_name || session.user.email}</span>
             </div>
           </div>
@@ -754,7 +748,6 @@ export default function App() {
             onChangeLang={setLang}
             onSignOut={signOut}
             cards={cards}
-            categories={categories}
             userId={session.user.id}
             email={session.user.email ?? ''}
             displayName={profile?.display_name ?? ''}
