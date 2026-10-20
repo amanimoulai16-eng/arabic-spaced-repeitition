@@ -592,6 +592,20 @@ export default function App() {
     [showToast, refreshAll, categories, t, cards, updatePendingCount, session],
   );
 
+  // Reminder hook — must run before any early return (Rules of Hooks).
+  const lastReviewDate = reviewLog.length > 0
+    ? reviewLog[0].reviewed_at.slice(0, 10)
+    : null;
+  const _dueCountEarly = cards.filter((c) => getStatus(c) !== 'upcoming').length;
+  const reminders = useReminders(_dueCountEarly, lastReviewDate);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      reminders.loadSettings(session.user.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
   // Auth gate
   if (authLoading) {
     return (
@@ -627,19 +641,6 @@ export default function App() {
   const streak = computeStreak(
     reviewLog.map((r) => ({ date: r.reviewed_at, outcome: r.rating })),
   );
-
-  const lastReviewDate = reviewLog.length > 0
-    ? reviewLog[0].reviewed_at.slice(0, 10)
-    : null;
-  const reminders = useReminders(dueCount, lastReviewDate);
-
-  // Load reminder settings once the session is available.
-  useEffect(() => {
-    if (session?.user?.id) {
-      reminders.loadSettings(session.user.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id]);
 
   const loading = authLoading || dataLoading;
 
