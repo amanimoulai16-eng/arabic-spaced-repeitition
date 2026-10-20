@@ -46,6 +46,7 @@ import { ReviewPage } from '@/components/ReviewPage';
 import { LibraryPage } from '@/components/LibraryPage';
 import { SettingsPage } from '@/components/SettingsPage';
 import { Avatar } from '@/components/Avatar';
+import { useReminders } from '@/lib/useReminders';
 import { WifiOff, Cloud } from 'lucide-react';
 
 export default function App() {
@@ -627,6 +628,19 @@ export default function App() {
     reviewLog.map((r) => ({ date: r.reviewed_at, outcome: r.rating })),
   );
 
+  const lastReviewDate = reviewLog.length > 0
+    ? reviewLog[0].reviewed_at.slice(0, 10)
+    : null;
+  const reminders = useReminders(dueCount, lastReviewDate);
+
+  // Load reminder settings once the session is available.
+  useEffect(() => {
+    if (session?.user?.id) {
+      reminders.loadSettings(session.user.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
   const loading = authLoading || dataLoading;
 
   return (
@@ -749,6 +763,20 @@ export default function App() {
             onRefresh={refreshAll}
             showToast={showToast}
             t={t}
+            reminderEnabled={reminders.state.enabled}
+            reminderTime={reminders.state.time}
+            reminderPermission={reminders.permission}
+            onToggleReminder={(enabled) => {
+              if (!session?.user?.id) return;
+              reminders.update(session.user.id, { enabled });
+            }}
+            onChangeReminderTime={(time) => {
+              if (!session?.user?.id) return;
+              reminders.update(session.user.id, { time });
+            }}
+            onRequestReminderPermission={() => {
+              void reminders.requestPermission();
+            }}
           />
         )}
       </div>

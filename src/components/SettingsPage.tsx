@@ -31,6 +31,7 @@ import {
   Trash2,
   X,
   Camera,
+  Bell,
 } from 'lucide-react';
 
 type TFunc = (key: string, ...args: never[]) => string;
@@ -55,6 +56,13 @@ type Props = {
   onRefresh: () => Promise<void>;
   showToast: (msg: string) => void;
   t: TFunc;
+  // Reminders
+  reminderEnabled: boolean;
+  reminderTime: string;
+  reminderPermission: 'default' | 'granted' | 'denied' | 'unsupported';
+  onToggleReminder: (enabled: boolean) => void;
+  onChangeReminderTime: (time: string) => void;
+  onRequestReminderPermission: () => void;
 };
 
 export function SettingsPage({
@@ -77,6 +85,12 @@ export function SettingsPage({
   onRefresh,
   showToast,
   t,
+  reminderEnabled,
+  reminderTime,
+  reminderPermission,
+  onToggleReminder,
+  onChangeReminderTime,
+  onRequestReminderPermission,
 }: Props) {
   const [intervals, setIntervals] = useState<number[]>(
     settings.intervals.length === 6 ? settings.intervals : DEFAULT_INTERVALS,
@@ -815,6 +829,89 @@ export function SettingsPage({
             </button>
           </div>
         </div>
+      </SectionCard>
+
+      {/* Section 3c: Reminders */}
+      <SectionCard
+        icon={<Bell size={18} />}
+        title={t('settings_reminders')}
+      >
+        <p className="text-[12px] text-text-faint mb-3 leading-relaxed">
+          {t('reminders_sub')}
+        </p>
+
+        {/* Enable toggle */}
+        <div className="flex items-center justify-between py-2.5">
+          <div className="flex items-center gap-2.5">
+            <Bell size={18} className="text-amber" />
+            <span className="text-[14px] text-text-main">
+              {t('daily_reminder')}
+            </span>
+          </div>
+          <button
+            onClick={() => onToggleReminder(!reminderEnabled)}
+            className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
+              reminderEnabled ? 'bg-amber' : 'bg-border'
+            }`}
+            aria-label={t('daily_reminder')}
+          >
+            <span
+              className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                reminderEnabled ? 'left-[22px]' : 'left-0.5'
+              }`}
+            />
+          </button>
+        </div>
+
+        {reminderEnabled && (
+          <div className="animate-fade-in">
+            <div className="h-px bg-border-soft my-1" />
+
+            {/* Permission status / request */}
+            {reminderPermission !== 'granted' && (
+              <div className="py-3">
+                <div className="surface-2 border border-amber/30 rounded-[10px] p-3.5">
+                  <p className="text-[12.5px] text-text-muted mb-2.5 leading-relaxed">
+                    {reminderPermission === 'denied'
+                      ? t('reminder_permission_denied')
+                      : t('reminder_permission_needed')}
+                  </p>
+                  {reminderPermission !== 'denied' &&
+                    reminderPermission !== 'unsupported' && (
+                      <button
+                        onClick={onRequestReminderPermission}
+                        className="btn-amber w-full py-2.5 text-[13.5px]"
+                      >
+                        {t('enable_notifications')}
+                      </button>
+                    )}
+                  {reminderPermission === 'denied' && (
+                    <p className="text-[11.5px] text-text-faint leading-relaxed">
+                      {t('reminder_denied_hint')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Time picker */}
+            <div className="py-2.5">
+              <label className="block text-[12.5px] text-text-muted mb-2">
+                {t('reminder_time')}
+              </label>
+              <input
+                type="time"
+                value={reminderTime}
+                onChange={(e) => onChangeReminderTime(e.target.value)}
+                dir="ltr"
+                className="input-dark w-full px-3 py-2.5 text-[14px]"
+              />
+              <p className="text-[11.5px] text-text-faint mt-2 leading-relaxed">
+                {t('reminder_time_hint')}
+              </p>
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       {/* Section 4: Data Management */}
