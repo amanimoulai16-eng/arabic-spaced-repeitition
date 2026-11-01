@@ -46,12 +46,14 @@ import { ReviewPage } from '@/components/ReviewPage';
 import { LibraryPage } from '@/components/LibraryPage';
 import { SettingsPage } from '@/components/SettingsPage';
 import { useReminders } from '@/lib/useReminders';
+import { usePWAUpdate } from '@/lib/usePWAUpdate';
 import { WifiOff, Cloud } from 'lucide-react';
 
 export default function App() {
   const { session, profile, loading: authLoading, recoveryMode, setRecoveryMode, signOut, updateDisplayName, updateAvatarUrl } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const { lang, setLang, t, tArr } = useLanguage();
+  const pwaUpdate = usePWAUpdate();
   const [cards, setCards] = useState<Card[]>([]);
   const [reviewLog, setReviewLog] = useState<ReviewLogEntry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -779,6 +781,20 @@ export default function App() {
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-surface-3 border border-border text-text-main px-5 py-2.5 rounded-full text-[13.5px] z-80 animate-fade-in">
           {toast}
+        </div>
+      )}
+
+      {/* PWA update prompt */}
+      {pwaUpdate.needRefresh && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-surface-3 border border-border text-text-main px-4 py-2.5 rounded-full text-[13.5px] z-80 animate-fade-in shadow-lg max-w-[92vw]">
+          <span className="truncate">{t('update_available')}</span>
+          <button
+            type="button"
+            onClick={() => void pwaUpdate.update()}
+            className="shrink-0 bg-amber text-surface-1 font-semibold px-3 py-1 rounded-full text-[12.5px] hover:bg-amber/90 transition-colors"
+          >
+            {t('update_btn')}
+          </button>
         </div>
       )}
 

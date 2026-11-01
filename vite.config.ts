@@ -16,27 +16,27 @@ export default defineConfig({
       filename: 'sw.ts',
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'supabase-storage',
-              expiration: { maxEntries: 60, maxAgeSeconds: 604800 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
+      runtimeCaching: [
+        {
+          urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'supabase-api',
+            expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+        {
+          urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/.*/i,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'supabase-storage',
+            expiration: { maxEntries: 60, maxAgeSeconds: 604800 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+      ],
       manifest: {
         id: '/',
         name: 'Tikrar - تكرار',
