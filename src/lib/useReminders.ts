@@ -29,25 +29,38 @@ async function fetchVapidPublicKey(): Promise<string | null> {
   if (cached) return cached;
   try {
     const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vapid-public-key`;
+    console.log('[useReminders] fetching VAPID public key from', url);
     const res = await fetch(url, {
       headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error('[useReminders] VAPID key fetch returned', res.status);
+      return null;
+    }
     const data = (await res.json()) as { publicKey?: string };
-    if (!data.publicKey) return null;
+    if (!data.publicKey) {
+      console.error('[useReminders] VAPID key response missing publicKey');
+      return null;
+    }
+    console.log('[useReminders] got VAPID public key');
     localStorage.setItem(VAPID_KEY_CACHE, data.publicKey);
     return data.publicKey;
-  } catch {
+  } catch (err) {
+    console.error('[useReminders] VAPID key fetch failed:', err);
     return null;
   }
 }
 
 async function getSWRegistration(): Promise<ServiceWorkerRegistration | null> {
-  if (!('serviceWorker' in navigator)) return null;
+  if (!('serviceWorker' in navigator)) {
+    console.warn('[useReminders] serviceWorker not supported');
+    return null;
+  }
   try {
     const reg = await navigator.serviceWorker.ready;
     return reg;
-  } catch {
+  } catch (err) {
+    console.error('[useReminders] SW registration not ready:', err);
     return null;
   }
 }
@@ -84,6 +97,10 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
   const [loaded, setLoaded] = useState(false);
 
   const timerRef = useRef<number | null>(null);
+  // Mirror state into a ref so callbacks (update, maybeFireNotification) read
+  // fresh values without being re-created on every state change.
+  const stateRef = useRef(state);
+  stateRef.current = state;
   // Keep the latest dueCount / lastReviewDate accessible to the scheduler
   // without rescheduling on every change.
   const ctxRef = useRef({ dueCount, lastReviewDate });
@@ -100,14 +117,17 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
 
   const requestPermission = useCallback(async (): Promise<Permission> => {
     if (!('Notification' in window)) {
+      console.warn('[useReminders] Notification API not supported');
       setPermission('unsupported');
       return 'unsupported';
     }
     try {
       const result = await Notification.requestPermission();
+      console.log('[useReminders] requestPermission result:', result);
       setPermission(result as Permission);
       return result as Permission;
-    } catch {
+    } catch (err) {
+      console.error('[useReminders] requestPermission threw:', err);
       setPermission('denied');
       return 'denied';
     }
@@ -115,26 +135,45 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
 
   // --- Register a Web Push subscription with the server ---
   const registerPush = useCallback(async (): Promise<void> => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    if (!('showNotification' in ServiceWorkerRegistration.prototype)) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('[useReminders] push not supported — SW or PushManager missing');
+      return;
+    }
+    if (!('showNotification' in ServiceWorkerRegistration.prototype)) {
+      console.warn('[useReminders] SW showNotification not supported');
+      return;
+    }
+    console.log('[useReminders] registerPush: getting SW registration…');
     const reg = await getSWRegistration();
-    if (!reg) return;
+    if (!reg) {
+      console.error('[useReminders] registerPush: no SW registration — aborting');
+      return;
+    }
+    console.log('[useReminders] registerPush: fetching VAPID key…');
     const vapidKey = await fetchVapidPublicKey();
-    if (!vapidKey) return;
+    if (!vapidKey) {
+      console.error('[useReminders] registerPush: no VAPID key — aborting');
+      return;
+    }
 
     let sub: PushSubscription | null = null;
     try {
       sub = await reg.pushManager.getSubscription();
-    } catch {
+      console.log('[useReminders] existing subscription:', sub ? 'found' : 'none');
+    } catch (err) {
+      console.error('[useReminders] getSubscription failed:', err);
       sub = null;
     }
     if (!sub) {
       try {
+        console.log('[useReminders] subscribing via pushManager.subscribe()…');
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: base64UrlToUint8Array(vapidKey),
         });
-      } catch {
+        console.log('[useReminders] push subscription created');
+      } catch (err) {
+        console.error('[useReminders] pushManager.subscribe failed:', err);
         return;
       }
     }
@@ -143,9 +182,13 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
-      if (!accessToken) return;
+      if (!accessToken) {
+        console.error('[useReminders] no auth session — cannot send subscription to server');
+        return;
+      }
+      console.log('[useReminders] sending subscription to subscribe-push…');
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/subscribe-push`;
-      await fetch(url, {
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -154,8 +197,13 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
         },
         body: JSON.stringify(sub),
       });
-    } catch {
-      // network — retry on next tick
+      if (!res.ok) {
+        console.error('[useReminders] subscribe-push returned', res.status);
+      } else {
+        console.log('[useReminders] subscription persisted server-side');
+      }
+    } catch (err) {
+      console.error('[useReminders] subscribe-push fetch failed:', err);
     }
   }, []);
 
@@ -166,9 +214,12 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
     if (!reg) return;
     try {
       const sub = await reg.pushManager.getSubscription();
-      if (sub) await sub.unsubscribe();
-    } catch {
-      // ignore
+      if (sub) {
+        await sub.unsubscribe();
+        console.log('[useReminders] push subscription unsubscribed');
+      }
+    } catch (err) {
+      console.error('[useReminders] unsubscribe failed:', err);
     }
   }, []);
 
@@ -213,27 +264,44 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
 
   const update = useCallback(
     (userId: string, patch: Partial<ReminderState>) => {
-      setState((prev) => {
-        const next = { ...prev, ...patch };
-        void saveSettings(userId, next);
+      const prev = stateRef.current;
+      const next = { ...prev, ...patch };
+      setState(next);
+      void saveSettings(userId, next);
 
-        // When enabling: request permission + register push subscription
-        if (patch.enabled === true && !prev.enabled) {
-          void (async () => {
+      // When enabling: request permission + register push subscription
+      if (patch.enabled === true && !prev.enabled) {
+        console.log('[useReminders] toggle ON — starting push registration flow');
+        void (async () => {
+          try {
+            console.log('[useReminders] requesting notification permission…');
             const perm = await requestPermission();
-            if (perm === 'granted') {
-              await registerPush();
+            console.log('[useReminders] permission result:', perm);
+            if (perm !== 'granted') {
+              console.warn('[useReminders] permission not granted — skipping push subscription');
+              return;
             }
-          })();
-        }
+            console.log('[useReminders] registering push subscription…');
+            await registerPush();
+            console.log('[useReminders] push registration flow complete');
+          } catch (err) {
+            console.error('[useReminders] push registration flow failed:', err);
+          }
+        })();
+      }
 
-        // When disabling: unsubscribe from push
-        if (patch.enabled === false && prev.enabled) {
-          void unregisterPush();
-        }
-
-        return next;
-      });
+      // When disabling: unsubscribe from push
+      if (patch.enabled === false && prev.enabled) {
+        console.log('[useReminders] toggle OFF — unregistering push');
+        void (async () => {
+          try {
+            await unregisterPush();
+            console.log('[useReminders] push unregistered');
+          } catch (err) {
+            console.error('[useReminders] push unregistration failed:', err);
+          }
+        })();
+      }
     },
     [saveSettings, requestPermission, registerPush, unregisterPush],
   );
@@ -307,10 +375,6 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
       // ignore
     }
   }, []);
-
-  // Mirror state into a ref so the scheduler reads fresh values.
-  const stateRef = useRef(state);
-  stateRef.current = state;
 
   // --- Scheduler: check every minute while the app is open ---
   useEffect(() => {
