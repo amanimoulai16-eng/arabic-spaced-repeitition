@@ -22,9 +22,30 @@ const navigationRoute = new NavigationRoute(
 );
 registerRoute(navigationRoute);
 
+// --- Push event (Web Push API) ---
+// Fires when the server sends a push message (even if no client is open).
+self.addEventListener('push', (event) => {
+  let payload: { title?: string; body?: string; tag?: string; url?: string } = {};
+  try {
+    payload = event.data?.json() ?? {};
+  } catch {
+    payload = { body: event.data?.text() ?? '' };
+  }
+  const title = payload.title || 'تكرار';
+  const options: NotificationOptions = {
+    body: payload.body || '',
+    tag: payload.tag || 'tikrar-daily-reminder',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: payload.url || '/' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
 // --- Notification click handler ---
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = (event.notification.data?.url as string) || '/';
   event.waitUntil(
     (async () => {
       const allClients = await self.clients.matchAll({
@@ -38,9 +59,9 @@ self.addEventListener('notificationclick', (event) => {
           return;
         }
       }
-      // Otherwise open a new tab
+      // Otherwise open a new tab to the target url
       if (self.clients.openWindow) {
-        await self.clients.openWindow('/');
+        await self.clients.openWindow(targetUrl);
       }
     })(),
   );

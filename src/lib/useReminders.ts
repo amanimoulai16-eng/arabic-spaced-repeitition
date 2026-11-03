@@ -12,6 +12,35 @@ type Permission = 'default' | 'granted' | 'denied' | 'unsupported';
 const DEFAULT_TIME = '09:00';
 const STORAGE_KEY = 'tikrar_reminder_last_fired';
 const PERIODIC_SYNC_TAG = 'tikrar-daily-reminder';
+const VAPID_KEY_CACHE = 'tikrar_vapid_public_key';
+
+function base64UrlToUint8Array(base64url: string): Uint8Array {
+  const pad = '='.repeat((4 - (base64url.length % 4)) % 4);
+  const base64 = base64url + pad.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** Fetch the VAPID public key from the edge function (cached in localStorage). */
+async function fetchVapidPublicKey(): Promise<string | null> {
+  const cached = localStorage.getItem(VAPID_KEY_CACHE);
+  if (cached) return cached;
+  try {
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vapid-public-key`;
+    const res = await fetch(url, {
+      headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { publicKey?: string };
+    if (!data.publicKey) return null;
+    localStorage.setItem(VAPID_KEY_CACHE, data.publicKey);
+    return data.publicKey;
+  } catch {
+    return null;
+  }
+}
 
 async function getSWRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null;
@@ -84,6 +113,65 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
     }
   }, []);
 
+  // --- Register a Web Push subscription with the server ---
+  const registerPush = useCallback(async (): Promise<void> => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (!('showNotification' in ServiceWorkerRegistration.prototype)) return;
+    const reg = await getSWRegistration();
+    if (!reg) return;
+    const vapidKey = await fetchVapidPublicKey();
+    if (!vapidKey) return;
+
+    let sub: PushSubscription | null = null;
+    try {
+      sub = await reg.pushManager.getSubscription();
+    } catch {
+      sub = null;
+    }
+    if (!sub) {
+      try {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: base64UrlToUint8Array(vapidKey),
+        });
+      } catch {
+        return;
+      }
+    }
+
+    // Persist subscription server-side
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) return;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/subscribe-push`;
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify(sub),
+      });
+    } catch {
+      // network — retry on next tick
+    }
+  }, []);
+
+  // --- Unsubscribe from push and remove the row server-side ---
+  const unregisterPush = useCallback(async (): Promise<void> => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const reg = await getSWRegistration();
+    if (!reg) return;
+    try {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // --- Load saved reminder settings from Supabase ---
   const loadSettings = useCallback(async (userId: string) => {
     try {
@@ -128,10 +216,26 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
       setState((prev) => {
         const next = { ...prev, ...patch };
         void saveSettings(userId, next);
+
+        // When enabling: request permission + register push subscription
+        if (patch.enabled === true && !prev.enabled) {
+          void (async () => {
+            const perm = await requestPermission();
+            if (perm === 'granted') {
+              await registerPush();
+            }
+          })();
+        }
+
+        // When disabling: unsubscribe from push
+        if (patch.enabled === false && prev.enabled) {
+          void unregisterPush();
+        }
+
         return next;
       });
     },
-    [saveSettings],
+    [saveSettings, requestPermission, registerPush, unregisterPush],
   );
 
   // --- Core: fire a notification if conditions are met ---
@@ -278,7 +382,7 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
       const body = due > 0
         ? `You have ${due} card${due === 1 ? '' : 's'} due for review today.`
         : 'You have cards due for review today.';
-      await cacheReminderConfig(reg, {
+      cacheReminderConfig(reg, {
         enabled: state.enabled,
         time: state.time,
         lastFired: localStorage.getItem(STORAGE_KEY) ?? todayKey,
@@ -286,6 +390,13 @@ export function useReminders(dueCount: number, lastReviewDate: string | null) {
       });
     })();
   }, [state.enabled, state.time, dueCount]);
+
+  // --- Register push when reminders enabled and permission granted ---
+  useEffect(() => {
+    if (!state.enabled) return;
+    if (permission !== 'granted') return;
+    void registerPush();
+  }, [state.enabled, permission, registerPush]);
 
   return {
     state,
