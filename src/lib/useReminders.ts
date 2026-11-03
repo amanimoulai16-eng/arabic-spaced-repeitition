@@ -16,7 +16,7 @@ const VAPID_KEY_CACHE = 'tikrar_vapid_public_key';
 
 function base64UrlToUint8Array(base64url: string): Uint8Array {
   const pad = '='.repeat((4 - (base64url.length % 4)) % 4);
-  const base64 = base64url + pad.replace(/-/g, '+').replace(/_/g, '/');
+  const base64 = (base64url + pad).replace(/-/g, '+').replace(/_/g, '/');
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
