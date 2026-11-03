@@ -1,0 +1,8 @@
+[functions.vapid-public-key]
+verify_jwt = false
+
+[functions.subscribe-push]
+verify_jwt = true
+
+[functions.send-daily-reminders]
+verify_jwt = false

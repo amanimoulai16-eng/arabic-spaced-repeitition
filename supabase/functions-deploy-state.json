@@ -1,0 +1,17 @@
+{
+  "projectId": "70375789",
+  "functions": {
+    "send-daily-reminders": {
+      "hasChanged": false,
+      "hash": "27957692dd02071a7862f2804329123476fa056bab5a3501227bb3559c924bf7"
+    },
+    "subscribe-push": {
+      "hasChanged": false,
+      "hash": "749f03709d2406a69239f94fd51371e00b8284bbd526251d640b0ae0d1dbe5a7"
+    },
+    "vapid-public-key": {
+      "hasChanged": false,
+      "hash": "dcfbcce7fce123f6ad810153156ac7b782fe6ca6942f1937cd4c6c069d9e66af"
+    }
+  }
+}
