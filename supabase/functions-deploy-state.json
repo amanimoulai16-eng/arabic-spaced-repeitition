@@ -3,7 +3,7 @@
   "functions": {
     "send-daily-reminders": {
       "hasChanged": false,
-      "hash": "27957692dd02071a7862f2804329123476fa056bab5a3501227bb3559c924bf7"
+      "hash": "bfbf58e1b7ffb9f24c087a6ef9467fe5b097171792a4219cbb801048b2cfd809"
     },
     "subscribe-push": {
       "hasChanged": false,
