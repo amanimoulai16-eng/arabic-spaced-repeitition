@@ -24,22 +24,68 @@ registerRoute(navigationRoute);
 
 // --- Push event (Web Push API) ---
 // Fires when the server sends a push message (even if no client is open).
-self.addEventListener('push', (event) => {
-  let payload: { title?: string; body?: string; tag?: string; url?: string } = {};
+const REMINDER_TEXT: Record<string, (n: number | null) => string> = {
+  ar: (n) =>
+    n === null ? 'لديك بطاقات للمراجعة اليوم'
+    : n === 1 ? 'لديك بطاقة واحدة للمراجعة اليوم'
+    : n === 2 ? 'لديك بطاقتان للمراجعة اليوم'
+    : n <= 10 ? `لديك ${n} بطاقات للمراجعة اليوم`
+    : `لديك ${n} بطاقة للمراجعة اليوم`,
+  en: (n) =>
+    n === null ? 'You have cards due for review today.'
+    : n === 1 ? 'You have 1 card due for review today.'
+    : `You have ${n} cards due for review today.`,
+  fr: (n) =>
+    n === null ? "Vous avez des cartes à réviser aujourd’hui."
+    : n === 1 ? "Vous avez 1 carte à réviser aujourd’hui."
+    : `Vous avez ${n} cartes à réviser aujourd’hui.`,
+  es: (n) =>
+    n === null ? 'Tienes tarjetas para repasar hoy.'
+    : n === 1 ? 'Tienes 1 tarjeta para repasar hoy.'
+    : `Tienes ${n} tarjetas para repasar hoy.`,
+  hi: (n) =>
+    n === null ? 'आज आपके पास समीक्षा के लिए कार्ड हैं।'
+    : n === 1 ? 'आज आपके पास समीक्षा के लिए 1 कार्ड है।'
+    : `आज आपके पास समीक्षा के लिए ${n} कार्ड हैं।`,
+};
+
+async function getReminderLang(): Promise<string> {
   try {
-    payload = event.data?.json() ?? {};
+    const cache = await caches.open('tikrar-prefs');
+    const res = await cache.match('/pref-lang');
+    if (res) {
+      const saved = (await res.text()).trim();
+      if (saved in REMINDER_TEXT) return saved;
+    }
   } catch {
-    payload = { body: event.data?.text() ?? '' };
+    // ignore
   }
-  const title = payload.title || 'تكرار';
-  const options: NotificationOptions = {
-    body: payload.body || '',
-    tag: payload.tag || 'tikrar-daily-reminder',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    data: { url: payload.url || '/' },
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+  const nav = (self.navigator.language || 'ar').slice(0, 2).toLowerCase();
+  return nav in REMINDER_TEXT ? nav : 'en';
+}
+
+self.addEventListener('push', (event) => {
+  event.waitUntil(
+    (async () => {
+      let payload: { title?: string; body?: string; tag?: string; url?: string } = {};
+      try {
+        payload = event.data?.json() ?? {};
+      } catch {
+        payload = { body: event.data?.text() ?? '' };
+      }
+      const lang = await getReminderLang();
+      const m = (payload.body || '').match(/\d+/);
+      const body = REMINDER_TEXT[lang](m ? parseInt(m[0], 10) : null);
+      const options: NotificationOptions = {
+        body,
+        tag: payload.tag || 'tikrar-daily-reminder',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        data: { url: payload.url || '/' },
+      };
+      await self.registration.showNotification(payload.title || 'تكرار', options);
+    })(),
+  );
 });
 
 // --- Notification click handler ---
