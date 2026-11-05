@@ -27,8 +27,14 @@ export function useLanguage() {
   useEffect(() => {
     const entry = LANGS.find((l) => l.code === lang)!;
     document.documentElement.lang = lang;
-    document.documentElement.dir = entry.dir;
+        document.documentElement.dir = entry.dir;
     localStorage.setItem('tikrar-lang', lang);
+    if ('caches' in window) {
+      caches
+        .open('tikrar-prefs')
+        .then((c) => c.put('/pref-lang', new Response(lang)))
+        .catch(() => {});
+    }
   }, [lang]);
 
   const changeLang = useCallback((newLang: Lang) => {
